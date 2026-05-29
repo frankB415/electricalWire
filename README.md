@@ -444,7 +444,7 @@ console.log("[ElectricalWire] A* path found", {
   pathLength: 380,
   segments: [...]
 });
-
+```
 
 ## codestyle
 - die export werden gesammelt am ende des files exportiert
