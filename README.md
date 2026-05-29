@@ -26,6 +26,7 @@ const DEFAULTS = {
   gridSize:            10,
   wireColor:           "#1a1a1a",
   wireWidth:           2,
+  stubColor:           "#2563eb",
   connectorRadius:     5,
   connectorColor:      "#e00",
   junctionRadius:      4,
@@ -76,6 +77,7 @@ const wiring = new ElectricalWire(container, options);
 | `connectorColor` | `string` | `"#e00"` | Füllfarbe der Connector-Kreise. |
 | `showBlockedAreas` | `boolean` | `false` | Sperrbereiche als hellgraue Fläche einzeichnen (nützlich für Debugging). |
 | `showConnectorLabels` | `boolean` | `true` | Connector-IDs als Textlabels über den Connector-Kreisen einzeichnen (nützlich für Debugging). |
+| `stubColor` | `string` | `"#2563eb"` | Farbe des minLength-Stubs und des Escape-Abschnitts (blau). |
 | `hoverColor` | `string` | `"#e67e00"` | Farbe, auf die alle Wires und Connectoren eines Stromkreises beim Hover wechseln. |
 | `logging` | `boolean` | `true` | Aktiviert oder deaktiviert sämtliche Debug-Logs der Bibliothek (siehe Abschnitt Logging). |
 
@@ -266,7 +268,11 @@ Jeder Connector definiert eine `direction` und eine `minLength`. Der Wire muss z
 
 Die `minLength`-Anforderung gilt **immer** — auch wenn der Connector innerhalb eines Sperrbereichs liegt. Der Stub-Korridor (direkte Strecke von der Connector-Position in `direction`, genau `minLength` Pixel lang) wird als feste Gerade gezeichnet und kann dabei einen Sperrbereich durchqueren.
 
-Ab dem Exitpunkt ist der Router vollständig frei. Liegt der Exitpunkt noch innerhalb eines Sperrbereichs, sucht der Router selbstständig den kürzesten Weg heraus — er kann dabei in jede Richtung abbiegen. Technisch werden vom Exitpunkt aus gerade Korridore in alle vier Richtungen bis zur jeweiligen Sperrbereichsgrenze für A\* freigegeben; A\* wählt dann den kürzesten Gesamtpfad.
+Liegt der Exitpunkt nach `minLength` noch innerhalb eines Sperrbereichs, verlässt der Wire diesen auf dem **kürzesten Weg** (minimale Gitterschritte bis zur ersten freien Zelle). Dabei ist die Richtung zurück durch den Stub (`OPPOSITE[direction]`) ausgeschlossen — der Escape geht immer nach vorne oder seitwärts. Dieser Escape-Abschnitt wird zusammen mit dem Stub in `stubColor` gezeichnet. Erst nach dem Escape beginnt das normale A\*-Routing.
+
+### Stub-Exklusivität
+
+Kein Wire eines anderen Stromkreises darf den Stub oder den Escape-Abschnitt eines Connectors kreuzen oder überlagern. Der gesamte Korridor von der Connector-Position bis zum Ende des Escape-Abschnitts (`actualStart`) wird für alle A\*-Aufrufe als nicht begehbar markiert.
 
 ### Sperrbereichs-Umgehung
 
@@ -345,7 +351,8 @@ Jedem SVG-Wire-Element und jedem SVG-Connector-Element wird das Attribut `data-n
 | Element | Darstellung |
 |---|---|
 | Wire | Orthogonale Linie, Farbe `wireColor`, Breite `wireWidth` |
-| Wire (Hover, ganzer Stromkreis) | Farbe wechselt zu `hoverColor` |
+| Stub (minLength + Escape) | Overlay auf dem Wire in Farbe `stubColor` (Default: Blau `#2563eb`), gleiche Breite wie Wire |
+| Wire (Hover, ganzer Stromkreis) | Farbe wechselt zu `hoverColor` (gilt auch für Stubs) |
 | Connector | Kreis, Farbe `connectorColor`, Radius `connectorRadius` |
 | Connector (Hover, ganzer Stromkreis) | Füllfarbe wechselt zu `hoverColor` |
 | Kreuzungsknoten | Schwarzer Punkt, Farbe `#000`, Radius `junctionRadius` |
@@ -379,16 +386,16 @@ Mehrere Netze, darunter eines mit ≥ 3 Connectoren, plus ein Sperrbereich-Div, 
 Je ein Connector mit `direction: "right"`, `"left"`, `"up"`, `"down"`, alle verbunden in einem Stern. Prüft: Mindestaustrittslänge in jede Richtung korrekt.
 
 ### Szenario 8 – Connector innerhalb eines Sperrbereichs
-Ein Connector liegt vollständig innerhalb eines Sperrbereich-Divs. `showBlockedAreas: true`. Prüft: `console.warn()` für den Connector wird ausgegeben; der Stub endet nach exakt `minLength` Pixeln noch innerhalb des Sperrbereichs; der Router öffnet Escape-Korridore in alle 4 Richtungen ab Exitpunkt und wählt den kürzesten Weg heraus.
+Ein Connector liegt vollständig innerhalb eines Sperrbereich-Divs. `showBlockedAreas: true`. Prüft: `console.warn()` für den Connector wird ausgegeben; der Stub endet nach exakt `minLength` Pixeln noch innerhalb des Sperrbereichs; der Router verlässt den Sperrbereich auf dem kürzesten Weg (ohne Rücklauf durch den Stub); Stub und Escape werden blau gezeichnet; kein anderer Wire kann durch den Stub oder Escape-Abschnitt laufen.
 
 ### Szenario 9 – Connectoren an der Sperrbereichsgrenze (Testcase 1)
-Beide Connector-Positionen liegen genau auf der Grenze je eines Sperrbereichs (je eine `console.warn()`). Die Exitpunkte nach `minLength` liegen jedoch bereits außerhalb der Sperrbereiche — es sind keine Escape-Korridore erforderlich, das Routing läuft normal ab den Exitpunkten. Rekonstruiert aus testcase_1.txt.
+Beide Connector-Positionen liegen genau auf der Grenze je eines Sperrbereichs (je eine `console.warn()`). Die Exitpunkte nach `minLength` liegen jedoch bereits außerhalb der Sperrbereiche — kein Escape nötig, das Routing läuft normal ab den Exitpunkten. Rekonstruiert aus testcase_1.txt.
 
 ### Szenario 10 – Eckenminimierung
 Zwei Connectoren mit diagonalem Versatz (C1 right, C2 left). Zwischen den Exitpunkten gibt es viele gleichlange Pfade — einer mit 2 Ecken (L-Form), viele mit mehr Ecken (Zickzack). Prüft: der Router wählt die L-Form. Außerdem ein Fall, bei dem ein Pfad mit mehr Länge aber weniger Ecken existiert: der kürzere Pfad muss bevorzugt werden (Länge hat Vorrang).
 
 ### Szenario 11 – Exitpunkt im Sperrbereich, Connector außerhalb
-Ein Connector liegt knapp außerhalb eines Sperrbereichs, aber `minLength` schiebt den Exitpunkt in den Sperrbereich hinein. Prüft: keine `console.warn()` für den Connector selbst; stattdessen `console.warn()` für den Exitpunkt (`exit point lands inside a blocked area`); Stub endet im Sperrbereich; Router findet selbstständig den kürzesten Weg heraus.
+Ein Connector liegt knapp außerhalb eines Sperrbereichs, aber `minLength` schiebt den Exitpunkt hinein. Prüft: keine `console.warn()` für den Connector selbst; stattdessen `console.warn()` für den Exitpunkt; Stub endet im Sperrbereich; Escape geht auf dem kürzesten Weg heraus, nicht zurück durch den Stub; Stub + Escape werden blau gezeichnet; der Escape-Abschnitt ist für alle anderen Wires gesperrt.
 
 
 ## Logging

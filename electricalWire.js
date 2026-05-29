@@ -4,6 +4,7 @@ const DEFAULTS = {
   gridSize:        10,
   wireColor:       '#1a1a1a',
   wireWidth:       2,
+  stubColor:       '#2563eb',   // Farbe des minLength-Stubs (und Escape-Pfads)
   connectorRadius: 5,
   connectorColor:  '#e00',
   junctionRadius:  4,
@@ -36,6 +37,7 @@ const DIR_VEC = {
   right: { dx: 1, dy: 0 }, left: { dx: -1, dy: 0 },
   up:    { dx: 0, dy: -1 }, down: { dx: 0, dy: 1 }
 };
+const OPPOSITE = { right: 'left', left: 'right', up: 'down', down: 'up' };
 
 function getExitPoint(conn, gridSize) {
   const { x, y, direction, minLength } = conn;
@@ -52,28 +54,25 @@ function getEntryPoint(conn, gridSize) {
   return getExitPoint(conn, gridSize);
 }
 
-// Liegt ein Punkt (Exitpunkt eines Connectors) innerhalb eines Sperrbereichs,
-// gibt diese Funktion gerade Korridore in alle 4 Richtungen vom Punkt bis zur
-// jeweiligen Sperrbereichsgrenze zurück. Diese Zellen werden in forceFreeCells
-// eingetragen, damit A* den kürzesten Weg aus dem Sperrbereich selbst wählen kann.
-// Der Stub bleibt dabei immer exakt minLength lang — der Router entscheidet danach frei.
-function escapeFreeCells(point, blockedRects, gridSize) {
-  const cells = new Set();
-  if (!blockedRects.length) return cells;
-  const inAny = (p) => blockedRects.some(
-    a => p.x >= a.x && p.x <= a.x + a.width && p.y >= a.y && p.y <= a.y + a.height
-  );
-  if (!inAny(point)) return cells;
-  const DIRS_VEC = [[1,0],[-1,0],[0,1],[0,-1]];
-  for (const [dx, dy] of DIRS_VEC) {
-    let p = { x: point.x, y: point.y };
-    const MAX = 2000;
-    for (let i = 0; i < MAX && inAny(p); i++) {
-      cells.add(`${snapToGrid(p.x, gridSize) / gridSize},${snapToGrid(p.y, gridSize) / gridSize}`);
-      p = { x: snapToGrid(p.x + dx * gridSize, gridSize), y: snapToGrid(p.y + dy * gridSize, gridSize) };
+// forbiddenDir: Richtung, die beim Escape nicht erlaubt ist — typischerweise
+// OPPOSITE[conn.direction], damit der Wire nicht durch den Stub zurückläuft.
+function findShortestEscape(gx, gy, blockedGridRanges, gridSize, forbiddenDir) {
+  const inBlocked = (x, y) =>
+    blockedGridRanges.some(r => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1);
+  if (!inBlocked(gx, gy)) return null;
+
+  const DIRS = [[1,0,'right'],[-1,0,'left'],[0,1,'down'],[0,-1,'up']];
+  let bestPixel = null, bestSteps = Infinity;
+  for (const [dx, dy, dir] of DIRS) {
+    if (dir === forbiddenDir) continue;
+    let x = gx, y = gy, steps = 0;
+    while (inBlocked(x, y) && steps < 2000) { x += dx; y += dy; steps++; }
+    if (!inBlocked(x, y) && steps < bestSteps) {
+      bestSteps = steps;
+      bestPixel = { x: x * gridSize, y: y * gridSize };
     }
   }
-  return cells;
+  return bestPixel;
 }
 
 function buildBlockedSet(areas, gridSize, gridW, gridH, logger) {
@@ -406,29 +405,31 @@ class ElectricalWire {
     if (pos === 'static' || pos === '' || pos == null)
       this._warn('container has no CSS positioning context (position is "static"). Set position to "relative", "absolute" or "fixed".');
 
+    // Gitterraum-Grenzen der Sperrbereiche (identisch zu buildBlockedSet) –
+    // für alle Warn-Checks damit Connector- und Exitpunkt-Klassifizierung
+    // konsistent mit dem Routing-Grid ist.
+    const blockedGridRanges = blockedRects.map(a => ({
+      x0: Math.floor(a.x / gs),
+      y0: Math.floor(a.y / gs),
+      x1: Math.ceil((a.x + a.width)  / gs),
+      y1: Math.ceil((a.y + a.height) / gs),
+    }));
+    const inAnyGridRange = (px, py) => {
+      const gx = Math.round(px / gs), gy = Math.round(py / gs);
+      return blockedGridRanges.some(r => gx >= r.x0 && gx <= r.x1 && gy >= r.y0 && gy <= r.y1);
+    };
+
     // Warnung: Connector innerhalb eines Sperrbereichs
     for (const c of this._connectors) {
-      for (const a of blockedRects) {
-        if (c.x >= a.x && c.x <= a.x + a.width && c.y >= a.y && c.y <= a.y + a.height) {
-          this._warn(`connector "${c.id}" lies within a blocked area. Routing may be impossible.`);
-          break;
-        }
-      }
+      if (inAnyGridRange(c.x, c.y))
+        this._warn(`connector "${c.id}" lies within a blocked area. Routing may be impossible.`);
     }
 
     // Warnung: Exitpunkt liegt im Sperrbereich, obwohl der Connector selbst außerhalb liegt.
-    // Tritt auf wenn minLength den Stub in einen Sperrbereich hineinstreckt.
-    // Der Stub wird automatisch verlängert bis er den Bereich verlässt.
     for (const c of this._connectors) {
-      const inConnector = blockedRects.some(
-        a => c.x >= a.x && c.x <= a.x + a.width && c.y >= a.y && c.y <= a.y + a.height
-      );
-      if (inConnector) continue; // bereits durch obige Warnung abgedeckt
+      if (inAnyGridRange(c.x, c.y)) continue; // bereits durch obige Warnung abgedeckt
       const exit = getExitPoint(c, gs);
-      const inExit = blockedRects.some(
-        a => exit.x >= a.x && exit.x <= a.x + a.width && exit.y >= a.y && exit.y <= a.y + a.height
-      );
-      if (inExit)
+      if (inAnyGridRange(exit.x, exit.y))
         this._warn(`connector "${c.id}" exit point (${exit.x},${exit.y}) lands inside a blocked area. Stub will be extended in direction "${c.direction}" until clear.`);
     }
 
@@ -496,6 +497,19 @@ class ElectricalWire {
 
     const occupiedSegments = new Set();
 
+    // Stub-Endpunkte für alle Connectoren vorausberechnen.
+    // connStubInfo enthält pro Connector: exitPoint (Ende minLength-Stub) und
+    // actualStart (erste freie Zelle nach Escape, = exitPoint wenn kein Escape nötig).
+    // Diese Werte werden (a) für das Routing verwendet und (b) in blockStub eingetragen,
+    // damit kein anderer Wire durch irgendeinen Stub oder Escape-Pfad läuft.
+    const connStubInfo = new Map();
+    for (const c of this._connectors) {
+      const exitPoint = getExitPoint(c, gs);
+      const exitGx = Math.round(exitPoint.x / gs), exitGy = Math.round(exitPoint.y / gs);
+      const escape  = findShortestEscape(exitGx, exitGy, blockedGridRanges, gs, OPPOSITE[c.direction]);
+      connStubInfo.set(c.id, { exitPoint, actualStart: escape ?? exitPoint });
+    }
+
     for (const [root, net] of nets) {
       const netConnectors = net.connectors;
       const netId = net.connections.map(c => c.id).join(',');
@@ -547,33 +561,35 @@ class ElectricalWire {
           endPoint   = getEntryPoint(endConn, opt.gridSize);
         }
 
-        // Der Stub ist immer exakt minLength lang (feste Gerade in direction).
-        // Ab dem Exitpunkt ist der Router vollständig frei — auch innerhalb eines
-        // Sperrbereichs. Liegt der Exitpunkt im Sperrbereich, öffnet escapeFreeCells
-        // Korridore in alle 4 Richtungen bis zur Bereichsgrenze, damit A* selbst
-        // den kürzesten Weg heraus wählen kann.
-        const actualStart = startPoint;
-        const actualEnd   = endPoint;
+        // Stub-Endpunkte aus der vorausberechneten Map holen.
+        const startInfo = startConn ? connStubInfo.get(startConn.id) : null;
+        const endInfo   = endConn   ? connStubInfo.get(endConn.id)   : null;
+        const actualStart = startInfo ? startInfo.actualStart : startPoint;
+        const actualEnd   = endInfo   ? endInfo.actualStart   : endPoint;
+        // escapeS/escapeE: non-null wenn Escape stattfand (exitPoint ≠ actualStart)
+        const escapeS = startInfo && (startInfo.actualStart.x !== startInfo.exitPoint.x || startInfo.actualStart.y !== startInfo.exitPoint.y) ? startInfo.exitPoint : null;
+        const escapeE = endInfo   && (endInfo.actualStart.x   !== endInfo.exitPoint.x   || endInfo.actualStart.y   !== endInfo.exitPoint.y)   ? endInfo.exitPoint   : null;
 
         this._log('Routing', { edge: `${nodeA.id}→${nodeB.id}`, start: `(${startPoint.x},${startPoint.y})`, end: `(${endPoint.x},${endPoint.y})` });
 
-        // Connector-Zellen und ihre Stub-Korridore sperren, damit der Router nicht
-        // durch einen Connector oder dessen minLength-Austrittsstub hindurchläuft
-        // (würde am Anschluss einen Zacken erzeugen). A* fliegt den Exit-Punkt dann
-        // sauber von der Seite an. Die beiden A*-Endpunkte selbst bleiben begehbar.
+        // Connector-Zellen, Stub-Korridore UND Escape-Pfade aller Connectoren sperren.
+        // Kein Wire darf jemals durch einen Stub (inkl. Escape) eines anderen Connectors laufen.
         const cellKey = (p) => `${snapToGrid(p.x, gs) / gs},${snapToGrid(p.y, gs) / gs}`;
         const extraBlocked = new Set();
         const blockStub = (conn) => {
-          // alle Gridzellen vom Connector bis kurz vor seinen Exit-Punkt sperren
-          const exit = getExitPoint(conn, gs);
-          const x0 = snapToGrid(conn.x, gs) / gs, y0 = snapToGrid(conn.y, gs) / gs;
-          const x1 = snapToGrid(exit.x, gs) / gs, y1 = snapToGrid(exit.y, gs) / gs;
-          const dx = Math.sign(x1 - x0), dy = Math.sign(y1 - y0);
+          const info = connStubInfo.get(conn.id);
+          // 1) connector.pos → exitPoint (minLength-Abschnitt)
+          const x0 = snapToGrid(conn.x, gs) / gs,      y0 = snapToGrid(conn.y, gs) / gs;
+          const x1 = snapToGrid(info.exitPoint.x, gs) / gs, y1 = snapToGrid(info.exitPoint.y, gs) / gs;
+          let dx = Math.sign(x1 - x0), dy = Math.sign(y1 - y0);
           let x = x0, y = y0;
-          while (true) {
-            extraBlocked.add(`${x},${y}`);
-            if (x === x1 && y === y1) break;
-            x += dx; y += dy;
+          while (true) { extraBlocked.add(`${x},${y}`); if (x === x1 && y === y1) break; x += dx; y += dy; }
+          // 2) exitPoint → actualStart (Escape-Abschnitt, falls vorhanden)
+          const x2 = snapToGrid(info.actualStart.x, gs) / gs, y2 = snapToGrid(info.actualStart.y, gs) / gs;
+          if (x2 !== x1 || y2 !== y1) {
+            dx = Math.sign(x2 - x1); dy = Math.sign(y2 - y1);
+            x = x1; y = y1;
+            while (true) { extraBlocked.add(`${x},${y}`); if (x === x2 && y === y2) break; x += dx; y += dy; }
           }
         };
         for (const c of this._connectors) {
@@ -588,24 +604,17 @@ class ElectricalWire {
           edge: `${nodeA.id}→${nodeB.id}`,
           actualStart: `(${actualStart.x},${actualStart.y})`,
           actualEnd:   `(${actualEnd.x},${actualEnd.y})`,
+          escapeStart: escapeS ? `(${startPoint.x},${startPoint.y})→(${actualStart.x},${actualStart.y})` : null,
+          escapeEnd:   escapeE ? `(${endPoint.x},${endPoint.y})→(${actualEnd.x},${actualEnd.y})`         : null,
           extraBlockedCount: extraBlocked.size,
-          startInExtraBlocked: extraBlocked.has(cellKey(actualStart)),
-          endInExtraBlocked:   extraBlocked.has(cellKey(actualEnd)),
         });
 
-        // A* zwischen actualStart und actualEnd.
-        // forceFreeCells: Exitpunkt-Zellen immer begehbar; liegt ein Exitpunkt im
-        // Sperrbereich, werden zusätzlich Korridore in alle 4 Richtungen bis zur
-        // Sperrbereichsgrenze freigegeben — A* wählt dann selbst den kürzesten Ausweg.
+        // forceFreeCells: nur noch actualStart und actualEnd freischalten.
+        // actualStart liegt per Konstruktion bereits außerhalb aller Sperrbereiche.
         const forceFreeCells = new Set([cellKey(actualStart), cellKey(actualEnd)]);
-        for (const k of escapeFreeCells(actualStart, blockedRects, gs)) forceFreeCells.add(k);
-        for (const k of escapeFreeCells(actualEnd,   blockedRects, gs)) forceFreeCells.add(k);
         const startDir = startConn ? startConn.direction : null;
         let route = aStarPath(actualStart, actualEnd, blockedRects, opt.gridSize, W, H, occupiedSegments, this._log.bind(this), `${nodeA.id}→${nodeB.id}`, extraBlocked, forceFreeCells, startDir);
         if (!route) {
-          // Liegt eine originale Connection für diese Kante vor, wird deren ID in der
-          // Fehlermeldung verwendet. Bei Steiner- oder MST-Kanten ohne direkte Connection
-          // werden die tatsächlichen Knoten-IDs der fehlgeschlagenen Kante gemeldet.
           const cid = orig ? orig.id : netId;
           const fId = orig ? orig.from : nodeA.id;
           const tId = orig ? orig.to   : nodeB.id;
@@ -613,36 +622,52 @@ class ElectricalWire {
           throw new Error(`ElectricalWire: no path found for connection "${cid}" (from "${fId}" to "${tId}"). Check blocked areas.`);
         }
 
-        // A*-Mittelteil von Spikes bereinigen, BEVOR die festen Stub-Punkte
-        // (Connector + minLength-Austrittsstub) angefügt werden. So bleiben die
-        // minLength-Austrittssegmente garantiert erhalten.
         const midRoute = removeSpikes(route);
 
-        // Gesamtpfad zusammensetzen:
-        // startConn → [minLength-Stub implizit in midRoute] → endConn
+        // Gesamtpfad: connectorPos → [exitPoint wenn Escape] → actualStart → A*-Route
+        //             → actualEnd → [exitPoint wenn Escape] → connectorPos
         const full = [];
-        if (startConn) full.push({ x: startConn.x, y: startConn.y });
+        if (startConn) {
+          full.push({ x: startConn.x, y: startConn.y });
+          if (escapeS) full.push(startPoint); // Knickpunkt am Ende des minLength-Stubs
+        }
         full.push(...midRoute);
-        if (endConn) full.push({ x: endConn.x, y: endConn.y });
+        if (endConn) {
+          if (escapeE) full.push(endPoint);
+          full.push({ x: endConn.x, y: endConn.y });
+        }
 
-        // Entferne doppelte aufeinanderfolgende Punkte
         const unique = [];
         for (let i = 0; i < full.length; i++) {
           if (i === 0 || full[i].x !== full[i-1].x || full[i].y !== full[i-1].y)
             unique.push(full[i]);
         }
-        // Vereinfache den Pfad (entferne überflüssige Zwischenpunkte)
         const simplified = simplifyPath(unique);
         const d = simplified.map((p,i) => `${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
 
         this._log('Final path', { netId, d });
 
+        // Hauptpfad in wireColor
         const wire = svgEl('path', { d, stroke: opt.wireColor, 'stroke-width': opt.wireWidth, fill: 'none', 'stroke-linecap': 'square', 'data-net-id': netId, class: 'ew-wire' });
         wireGroup.appendChild(wire);
         const hit = svgEl('path', { d, stroke: opt.wireColor, 'stroke-width': Math.max(8, opt.wireWidth+6), fill: 'none', opacity: '0', 'data-net-id': netId, class: 'ew-wire-hit' });
         wireGroup.appendChild(hit);
         hit.addEventListener('mouseenter', () => this._highlight(netId, true));
         hit.addEventListener('mouseleave', () => this._highlight(netId, false));
+
+        // Stub-Overlay in stubColor: connector → [exitPoint →] actualStart.
+        // Liegt kein Escape vor (escapeS/E null), ist exitPoint = actualStart → gerade Linie.
+        // Mit Escape (exitPoint ≠ actualStart) wird die L-Form gezeichnet.
+        const drawStub = (from, via, to) => {
+          if (from.x === to.x && from.y === to.y) return;
+          const pts = [from];
+          if (via && (via.x !== to.x || via.y !== to.y)) pts.push(via);
+          pts.push(to);
+          const ds = pts.map((p,i) => `${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
+          wireGroup.appendChild(svgEl('path', { d: ds, stroke: opt.stubColor, 'stroke-width': opt.wireWidth, fill: 'none', 'stroke-linecap': 'square', 'data-net-id': netId, class: 'ew-stub' }));
+        };
+        if (startConn) drawStub({ x: startConn.x, y: startConn.y }, escapeS ? startPoint : null, actualStart);
+        if (endConn)   drawStub({ x: endConn.x,   y: endConn.y   }, escapeE ? endPoint   : null, actualEnd);
 
         // Kollisionserkennung (vereinfacht)
         for (let i = 1; i < simplified.length; i++) {
@@ -677,6 +702,7 @@ class ElectricalWire {
     if (!this._svg) return;
     const opt = this._options;
     this._svg.querySelectorAll(`.ew-wire[data-net-id="${netId}"]`).forEach(el => el.setAttribute('stroke', on ? opt.hoverColor : opt.wireColor));
+    this._svg.querySelectorAll(`.ew-stub[data-net-id="${netId}"]`).forEach(el => el.setAttribute('stroke', on ? opt.hoverColor : opt.stubColor));
     this._svg.querySelectorAll(`.ew-connector[data-net-id="${netId}"]`).forEach(el => el.setAttribute('fill', on ? opt.hoverColor : opt.connectorColor));
   }
 }
