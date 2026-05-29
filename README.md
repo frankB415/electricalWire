@@ -438,12 +438,12 @@ console.log("[ElectricalWire] A* path found", {
   segments: [...]
 });
 
+---
 
 ## codestyle
 - die export werden gesammelt am ende des files exportiert
 - es gibt ein electricalWire_API.md, kein jsdoc
 
----
 
 ## Nicht im Scope (v1)
 
