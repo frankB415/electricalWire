@@ -4,7 +4,7 @@
 
 `electricalWire.js` ist eine JavaScript-Bibliothek zur Visualisierung von elektrischen Verbindungen (Wires) zwischen Elementen eines Schaltplans. Sie übernimmt das automatische Routing orthogonaler Leitungen zwischen definierten Anschlusspunkten (Connectoren).
 
-Die Bibliothek wird als **ES-Modul** ausgeliefert (`export default ElectricalWire`). Einbindung in HTML über `<script type="module">`, kein Bundler erforderlich.
+Die Bibliothek unterstützt **Dual-Export**: klassischer `<script>`-Tag (`window.ElectricalWire`) und ES-Modul (`import` via `electricalWire.module.js`). Kein Bundler erforderlich.
 
 ---
 
@@ -12,10 +12,11 @@ Die Bibliothek wird als **ES-Modul** ausgeliefert (`export default ElectricalWir
 
 ```
 electricalWire/
-├── requirement.md
-├── electricalWire.js
-├── test.html
-└── (optional) electricalWire.css
+├── electricalWire.js          ← <script src="..."> → window.ElectricalWire
+├── electricalWire.module.js   ← import { ElectricalWire } from '...'
+├── electricalWire_API.md
+├── README.md
+└── test.html
 ```
 
 Die Standard-Optionswerte sind als Konstante am Anfang von `electricalWire.js` definiert:
