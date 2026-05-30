@@ -139,26 +139,37 @@ wiring.setConnections([
 
 ---
 
-### `setBlockedAreas(areas)`
+### `setBlockedAreas(areas, options?)`
 
-Setzt rechteckige Sperrbereiche, durch die keine Wires geführt werden dürfen.
+Setzt Sperrbereiche, durch die keine Wires geführt werden dürfen.
+`areas` ist ein Array von `HTMLElement`-Objekten — Position und Größe werden
+erst bei `render()` via `getBoundingClientRect()` aus dem DOM ausgelesen.
 
 ```js
-wiring.setBlockedAreas([
-  { x: 150, y: 80, width: 120, height: 100 },
-]);
+wire.setBlockedAreas([divR1, divR2, divC1]);
+
+// Mit shrink: Sperrbereich nach innen verkleinern (verhindert
+// "lies within blocked area"-Warnung wenn Connector-Dots am Rand liegen)
+wire.setBlockedAreas([divR1, divR2, divC1], { shrink: 8 });
 ```
 
 Leeres Array `[]` ist gültig (keine Sperrbereiche).
 
-**Sperrbereich-Objekt:**
+| Parameter | Typ | Beschreibung |
+|---|---|---|
+| `areas` | `Array<HTMLElement \| {x,y,width,height}>` | DOM-Elemente **oder** fertige Rechteck-Objekte in Container-Pixeln |
+| `options.shrink` | `number` | Jeden `HTMLElement`-Sperrbereich um diesen Wert (px) nach innen verkleinern (Default: `0`). Gilt nicht für Rechteck-Objekte. Empfehlung: halber Dot-Radius (`5`). |
 
-| Eigenschaft | Typ      | Pflicht | Beschreibung                                 |
-|-------------|----------|---------|----------------------------------------------|
-| `x`         | `number` | ✓       | X-Position der linken oberen Ecke (px).      |
-| `y`         | `number` | ✓       | Y-Position der linken oberen Ecke (px).      |
-| `width`     | `number` | ✓       | Breite in px. Muss > 0 sein.                 |
-| `height`    | `number` | ✓       | Höhe in px. Muss > 0 sein.                   |
+```js
+// HTMLElement — Position wird bei render() aus DOM gelesen
+wire.setBlockedAreas([divR1, divR2], { shrink: 5 });
+
+// Rechteck-Objekt — z.B. aus schematicBlock.getImageRect()
+wire.setBlockedAreas(
+  [r1, r2, c1].map(b => b.getImageRect(schematic)),
+  { shrink: 5 }
+);
+```
 
 Überlappende Sperrbereiche werden als Vereinigung behandelt — kein Wire-Segment darf irgendeinen der Bereiche schneiden.
 
@@ -257,6 +268,15 @@ Jedes Wire-, Connector- und Junction-Element trägt das Attribut `data-net-id` m
 ```js
 svg.querySelectorAll('[data-net-id="W1,W2"]');
 ```
+
+---
+
+## SVG-Verhalten im DOM
+
+Das von `render()` erzeugte SVG-Element liegt als `position: absolute` über dem Container.
+Es hat `pointer-events: none` — DOM-Elemente darunter (z.B. `schematicBlock`-Blöcke) bleiben
+vollständig klickbar. Nur die Wire-Hit-Paths (`ew-wire-hit`) haben `pointer-events: all`
+und reagieren auf Hover und Rechtsklick.
 
 ---
 
