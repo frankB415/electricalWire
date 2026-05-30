@@ -2,20 +2,33 @@
 
 ## Einbindung
 
+**Option A — klassischer `<script>`-Tag (kein Modul-System nötig):**
+```html
+<script src="electricalWire.js"></script>
+<!-- ElectricalWire ist danach als window.ElectricalWire verfügbar -->
+```
+
+**Option B — ES-Modul (`import`):**
 ```html
 <script type="module">
-  import ElectricalWire from './electricalWire.js';
+  import { ElectricalWire } from './electricalWire.module.js';
+  // oder als Default-Import:
+  import ElectricalWire from './electricalWire.module.js';
 </script>
 ```
 
-Kein Bundler erforderlich. Die Datei wird als natives ES-Modul geladen.
+Kein Bundler erforderlich.
 
 ---
 
 ## Schnellstart
 
 ```js
-import ElectricalWire from './electricalWire.js';
+// Option A (<script src="electricalWire.js">):
+const ElectricalWire = window.ElectricalWire;
+
+// Option B (ES-Modul):
+import { ElectricalWire } from './electricalWire.module.js';
 
 const container = document.getElementById('schaltplan');
 

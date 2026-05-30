@@ -1,5 +1,5 @@
-// electricalWire.js – Einbindung via <script src="electricalWire.js"> → window.ElectricalWire
-// ES-Modul:           import { ElectricalWire } from './electricalWire.module.js'
+// electricalWire.module.js — ES-Modul
+// import { ElectricalWire } from './electricalWire.module.js'
 
 const DEFAULTS = {
   gridSize:        10,
@@ -682,7 +682,5 @@ class ElectricalWire {
   }
 }
 
-// Globaler Export für <script src="electricalWire.js">
-if (typeof window !== 'undefined') {
-  window.ElectricalWire = ElectricalWire;
-}
+export { ElectricalWire };
+export default ElectricalWire;
