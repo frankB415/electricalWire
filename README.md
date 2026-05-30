@@ -19,6 +19,12 @@ electricalWire/
 └── test.html
 ```
 
+### Wichtige Verhaltenseigenschaften
+
+- **SVG `pointer-events: none`** — das erzeugte SVG blockiert keine Klicks auf DOM-Elemente darunter. Nur Wire-Hit-Paths reagieren auf Mausevents.
+- **`setBlockedAreas()`** akzeptiert `HTMLElement[]` oder `{x,y,width,height}`-Objekte (z.B. aus `schematicBlock.getImageRect()`).
+- **`shrink`-Option** in `setBlockedAreas()` verkleinert `HTMLElement`-Sperrbereiche nach innen — nützlich wenn Connector-Dots am Rand eines Elements liegen.
+
 Die Standard-Optionswerte sind als Konstante am Anfang von `electricalWire.js` definiert:
 
 ```js
@@ -442,7 +448,8 @@ console.log("[ElectricalWire] A* path found", {
 ```
 
 ## codestyle
-- die export werden gesammelt am ende des files exportiert
+- kein `export` in `electricalWire.js` — nur `window.ElectricalWire` am Ende
+- ES-Modul-Export ausschließlich über `electricalWire.module.js` (schlanker Wrapper)
 - es gibt ein electricalWire_API.md, kein jsdoc
 
 ---
