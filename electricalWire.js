@@ -319,7 +319,8 @@ class ElectricalWire {
     this._options = { ...DEFAULTS, ...options };
     this._connectors = null;
     this._connections = null;
-    this._blocked = null;
+    this._blocked       = null;
+    this._blockedShrink = 0;
     this._svg = null;
   }
 
@@ -360,13 +361,32 @@ class ElectricalWire {
     this._connections = connections;
   }
 
-  setBlockedAreas(areas) {
+  /**
+   * Sperrbereiche setzen.
+   * @param {HTMLElement[]} areas   — DOM-Elemente die Sperrbereiche repräsentieren
+   * @param {object}        [opts]
+   * @param {number}        [opts.shrink=0] — Jeden Sperrbereich um diesen Wert (px) nach innen
+   *                                          verkleinern. Nützlich wenn Connector-Dots am Rand
+   *                                          des Elements liegen und sonst als „innerhalb des
+   *                                          Sperrbereichs" gewertet würden (typisch: halbe Dot-Größe).
+   */
+  /**
+   * Sperrbereiche setzen.
+   * @param {Array<HTMLElement|{x,y,width,height}>} areas
+   *   Entweder HTMLElement (Position wird bei render() aus DOM gelesen)
+   *   oder fertiges Rechteck-Objekt {x, y, width, height} in Container-Pixeln.
+   * @param {object} [opts]
+   * @param {number} [opts.shrink=0] — Jeden HTMLElement-Sperrbereich um diesen Wert nach innen verkleinern.
+   *                                   Gilt nicht für Rechteck-Objekte (bereits vorberechnet).
+   */
+  setBlockedAreas(areas, { shrink = 0 } = {}) {
     if (!Array.isArray(areas)) throw new Error('ElectricalWire: setBlockedAreas() expects an array.');
     areas.forEach((a, i) => {
-      if (!(a instanceof HTMLElement))
-        throw new Error(`ElectricalWire: blocked area at index ${i} is not an HTMLElement.`);
+      if (!(a instanceof HTMLElement) && !(typeof a === 'object' && 'x' in a && 'width' in a))
+        throw new Error(`ElectricalWire: blocked area at index ${i} is not an HTMLElement or rect object.`);
     });
-    this._blocked = areas;
+    this._blocked       = areas;
+    this._blockedShrink = shrink;
   }
 
   clear() { if (this._svg) { this._svg.remove(); this._svg = null; } }
@@ -389,12 +409,19 @@ class ElectricalWire {
     // Die Auswertung erfolgt hier bei render(), damit Änderungen an der DOM-Position
     // der Elemente zwischen setBlockedAreas() und render() automatisch berücksichtigt werden.
     const containerRect = this._container.getBoundingClientRect();
+    const shrink = this._blockedShrink;
     const blockedRects = this._blocked.map((el, i) => {
-      const r = el.getBoundingClientRect();
-      const x = r.left - containerRect.left;
-      const y = r.top  - containerRect.top;
-      const width  = r.width;
-      const height = r.height;
+      let x, y, width, height;
+      if (el instanceof HTMLElement) {
+        const r = el.getBoundingClientRect();
+        x      = r.left - containerRect.left + shrink;
+        y      = r.top  - containerRect.top  + shrink;
+        width  = r.width  - shrink * 2;
+        height = r.height - shrink * 2;
+      } else {
+        // Fertiges Rechteck-Objekt {x, y, width, height} — bereits in Container-Koordinaten
+        ({ x, y, width, height } = el);
+      }
       if (width <= 0 || height <= 0)
         throw new Error(`ElectricalWire: blocked area at index ${i} has zero dimensions. Ensure the element is visible in the DOM.`);
       return { x, y, width, height };
@@ -446,7 +473,7 @@ class ElectricalWire {
     this._log('Blocked areas', blockedRects);
 
     this.clear();
-    const svg = svgEl('svg', { width: W, height: H, style: 'position:absolute;top:0;left:0' });
+    const svg = svgEl('svg', { width: W, height: H, style: 'position:absolute;top:0;left:0;pointer-events:none' });
     this._container.appendChild(svg);
     this._svg = svg;
 
@@ -640,7 +667,7 @@ class ElectricalWire {
 
         const wire = svgEl('path', { d, stroke: opt.wireColor, 'stroke-width': opt.wireWidth, fill: 'none', 'stroke-linecap': 'square', 'data-net-id': netId, class: 'ew-wire' });
         wireGroup.appendChild(wire);
-        const hit = svgEl('path', { d, stroke: opt.wireColor, 'stroke-width': Math.max(8, opt.wireWidth+6), fill: 'none', opacity: '0', 'data-net-id': netId, class: 'ew-wire-hit' });
+        const hit = svgEl('path', { d, stroke: opt.wireColor, 'stroke-width': Math.max(8, opt.wireWidth+6), fill: 'none', opacity: '0', 'data-net-id': netId, class: 'ew-wire-hit', 'pointer-events': 'all' });
         wireGroup.appendChild(hit);
         hit.addEventListener('mouseenter', () => this._highlight(netId, true));
         hit.addEventListener('mouseleave', () => this._highlight(netId, false));
