@@ -102,7 +102,7 @@ function buildBlockedSet(areas, gridSize, gridW, gridH, logger) {
 // werden. Ermöglicht A*-Start/Ziel innerhalb eines Sperrbereichs (minLength-Stub).
 // startDir: Anflugrichtung am Startpunkt (Connector-Richtung), oder null für
 // Steiner-Startpunkte ohne definierte Richtung.
-function aStarPath(a, b, blockedAreas, gridSize, containerW, containerH, occupiedSegments, logger, label, extraBlocked, forceFreeCells, startDir) {
+function aStarPath(a, b, blockedAreas, gridSize, containerW, containerH, occupiedSegments, logger, label, extraBlocked, forceFreeCells, startDir, occupiedCells) {
   const TURN_COST = 0.5;  // < 1 → Länge hat Vorrang vor Eckenanzahl
 
   const sx = snapToGrid(a.x, gridSize) / gridSize;
@@ -175,7 +175,9 @@ function aStarPath(a, b, blockedAreas, gridSize, containerW, containerH, occupie
     open.delete(curKey);
     closed.add(curKey);
 
-    if (cur.x === tx && cur.y === ty) {
+    const onTarget = (cur.x === tx && cur.y === ty) ||
+                     (occupiedCells && occupiedCells.has(`${cur.x},${cur.y}`) && !(cur.x === sx && cur.y === sy));
+    if (onTarget) {
       // Pfad rekonstruieren: Schlüssel hat Format "gx,gy,dir" — erste zwei Tokens sind Koordinaten
       const path = [];
       let k = curKey;
@@ -523,13 +525,34 @@ class ElectricalWire {
     }
 
     const occupiedSegments = new Set();
+    const occupiedCells    = new Set(); // Gridzellen aller bereits gerouteten Pfade (für T-Junction)
 
     for (const [root, net] of nets) {
       const netConnectors = net.connectors;
       const netId = net.connections.map(c => c.id).join(',');
+      // Hub-Erkennung: Connector der in >1 Connections vorkommt ist natürlicher
+      // Sammelpunkt. MST mit Hub als Wurzel → Spoke-Kanten direkt zum Hub.
+      // Ohne Hub: Steiner-Punkt für optimales T-Routing.
       let steiner = null;
-      if (netConnectors.length >= 3) steiner = findSteinerPoint(netConnectors);
-      const allNodes = steiner ? [...netConnectors, { id: '__steiner__', x: steiner.x, y: steiner.y }] : netConnectors;
+      let hubId = null;
+      if (netConnectors.length >= 3) {
+        const connUsage = new Map();
+        for (const conn of net.connections) {
+          connUsage.set(conn.from, (connUsage.get(conn.from) || 0) + 1);
+          connUsage.set(conn.to,   (connUsage.get(conn.to)   || 0) + 1);
+        }
+        for (const [id, count] of connUsage)
+          if (count > 1) { hubId = id; break; }
+        if (!hubId) steiner = findSteinerPoint(netConnectors);
+      }
+      const allNodes = steiner
+        ? [...netConnectors, { id: '__steiner__', x: steiner.x, y: steiner.y }]
+        : netConnectors.slice();
+      // Hub als MST-Wurzel → buildMST baut Speichen direkt zum Hub
+      if (hubId) {
+        const hi = allNodes.findIndex(n => n.id === hubId);
+        if (hi > 0) allNodes.unshift(allNodes.splice(hi, 1)[0]);
+      }
       const edges = buildMST(allNodes);
       const wireGroup = svgEl('g', { 'data-net-id': netId, class: 'ew-net' });
       svg.appendChild(wireGroup);
@@ -629,7 +652,7 @@ class ElectricalWire {
         for (const k of escapeFreeCells(actualStart, blockedRects, gs)) forceFreeCells.add(k);
         for (const k of escapeFreeCells(actualEnd,   blockedRects, gs)) forceFreeCells.add(k);
         const startDir = startConn ? startConn.direction : null;
-        let route = aStarPath(actualStart, actualEnd, blockedRects, opt.gridSize, W, H, occupiedSegments, this._log.bind(this), `${nodeA.id}→${nodeB.id}`, extraBlocked, forceFreeCells, startDir);
+        let route = aStarPath(actualStart, actualEnd, blockedRects, opt.gridSize, W, H, occupiedSegments, this._log.bind(this), `${nodeA.id}→${nodeB.id}`, extraBlocked, forceFreeCells, startDir, hubId ? occupiedCells : null);
         if (!route) {
           // Liegt eine originale Connection für diese Kante vor, wird deren ID in der
           // Fehlermeldung verwendet. Bei Steiner- oder MST-Kanten ohne direkte Connection
@@ -683,6 +706,8 @@ class ElectricalWire {
             const x2 = Math.round(ax + dxs*(s+1)), y2 = Math.round(ay + dys*(s+1));
             const sk = (x1 < x2 || (x1 === x2 && y1 < y2)) ? `${x1},${y1}|${x2},${y2}` : `${x2},${y2}|${x1},${y1}`;
             occupiedSegments.add(sk);
+            occupiedCells.add(`${x1},${y1}`);
+            occupiedCells.add(`${x2},${y2}`);
           }
         }
       }
