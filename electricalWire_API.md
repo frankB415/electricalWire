@@ -166,7 +166,7 @@ wire.setBlockedAreas([divR1, divR2], { shrink: 5 });
 
 // Rechteck-Objekt — z.B. aus schematicBlock.getImageRect()
 wire.setBlockedAreas(
-  [r1, r2, c1].map(b => b.getImageRect(schematic)),
+  [r1, r2, c1].map(b => b.getImageDiv()),
   { shrink: 5 }
 );
 ```
