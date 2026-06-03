@@ -94,16 +94,17 @@ function buildBlockedSet(areas, gridSize, gridW, gridH, logger) {
 // A* mit richtungserweiterten Zuständen (x, y, dir) zur Eckenminimierung.
 //
 // Jeder Richtungswechsel gegenüber dem vorangehenden Schritt erhöht die Pfadkosten
-// um TURN_COST. Da TURN_COST < 1 (Kosten einer einzelnen Gridzelle), hat die
-// Gesamtlänge immer Vorrang; Ecken werden nur dort reduziert, wo Länge und
-// Eckenanzahl gemeinsam optimiert werden können.
+// um TURN_COST. TURN_COST > 1 bedeutet: A* bevorzugt aktiv weniger Ecken, auch wenn
+// der Pfad dadurch einige Gridzellen länger wird. Konkret: eine Ecke wird vermieden,
+// wenn das dadurch entstehende Umweg weniger als TURN_COST Gridzellen kostet.
+// Beispiel: TURN_COST=10 → eine Ecke wird gespart, solange der Umweg <10 Zellen ist.
 //
 // forceFreeCells: Set von "gx,gy"-Schlüsseln, die aus dem Blocked-Set freigegeben
 // werden. Ermöglicht A*-Start/Ziel innerhalb eines Sperrbereichs (minLength-Stub).
 // startDir: Anflugrichtung am Startpunkt (Connector-Richtung), oder null für
 // Steiner-Startpunkte ohne definierte Richtung.
 function aStarPath(a, b, blockedAreas, gridSize, containerW, containerH, occupiedSegments, logger, label, extraBlocked, forceFreeCells, startDir, occupiedCells) {
-  const TURN_COST = 0.5;  // < 1 → Länge hat Vorrang vor Eckenanzahl
+  const TURN_COST = 10;  // > 1 → Ecken aktiv vermeiden (Umweg bis 10 Zellen wird akzeptiert)
 
   const sx = snapToGrid(a.x, gridSize) / gridSize;
   const sy = snapToGrid(a.y, gridSize) / gridSize;
@@ -247,7 +248,39 @@ function removeSpikes(points) {
   return pts;
 }
 
-// Pfadvereinfachung: Entfernt Punkte, die auf einer geraden Linie liegen
+// Nach A*-T-Junction-Shortcut: Den Exit-Punkt entlang des bereits belegten Drahts
+// weiter wandern, bis ein Punkt erreicht ist, der mit dem Ziel achsparallel liegt
+// (gleiche gx oder gy). Dadurch landet die spätere Querverbindung zum Ziel auf der
+// existierenden Drahtachse → keine doppelten parallelen Linien, sauberer T-Look,
+// und eine Ecke weniger im finalen Pfad.
+// Wandert nur in der ursprünglichen A*-Bewegungsrichtung; verlässt den Draht nicht.
+function slideAlongWire(route, occupiedCells, target, gridSize) {
+  if (!route || route.length < 2 || !occupiedCells) return route;
+  const last = route[route.length - 1];
+  const prev = route[route.length - 2];
+  const lx = last.x / gridSize, ly = last.y / gridSize;
+  const px = prev.x / gridSize, py = prev.y / gridSize;
+  const tx = target.x / gridSize, ty = target.y / gridSize;
+  // Bereits achsparallel zum Ziel? → nichts tun
+  if (lx === tx || ly === ty) return route;
+  const dx = Math.sign(lx - px), dy = Math.sign(ly - py);
+  if (dx === 0 && dy === 0) return route;
+  // Schritt-für-Schritt entlang Draht wandern, bis achsparallel oder Draht endet
+  const extension = [];
+  let cx = lx, cy = ly;
+  const MAX = 1000;
+  for (let i = 0; i < MAX; i++) {
+    const nx = cx + dx, ny = cy + dy;
+    if (!occupiedCells.has(`${nx},${ny}`)) break;
+    cx = nx; cy = ny;
+    extension.push({ x: cx * gridSize, y: cy * gridSize });
+    if (cx === tx || cy === ty) return [...route, ...extension];
+  }
+  // Keine Achsparallelität entlang des Drahts gefunden → Original
+  return route;
+}
+
+
 function simplifyPath(points) {
   if (points.length < 3) return points;
   const result = [points[0]];
@@ -264,6 +297,8 @@ function simplifyPath(points) {
   result.push(points[points.length-1]);
   return result;
 }
+
+
 
 function buildMST(nodes) {
   if (nodes.length <= 1) return [];
@@ -664,6 +699,11 @@ class ElectricalWire {
           throw new Error(`ElectricalWire: no path found for connection "${cid}" (from "${fId}" to "${tId}"). Check blocked areas.`);
         }
 
+        // Bei T-Junction-Shortcut: Den Exit-Punkt entlang des bereits belegten Drahts
+        // verschieben, bis er achsparallel zum Ziel liegt. Spart eine Ecke und sorgt
+        // dafür, dass die Querverbindung auf der Drahtachse landet (visuell sauberer).
+        if (hubId) route = slideAlongWire(route, occupiedCells, actualEnd, opt.gridSize);
+
         // A*-Mittelteil von Spikes bereinigen, BEVOR die festen Stub-Punkte
         // (Connector + minLength-Austrittsstub) angefügt werden. So bleiben die
         // minLength-Austrittssegmente garantiert erhalten.
@@ -671,10 +711,34 @@ class ElectricalWire {
 
         // Gesamtpfad zusammensetzen:
         // startConn → [minLength-Stub implizit in midRoute] → endConn
+        // Wichtig: endConn nur dann direkt anhängen, wenn er mit dem letzten
+        // midRoute-Punkt achsparallel ausgerichtet ist (gleiche x oder gleiche y).
+        // Sonst würde ein diagonales Segment entstehen (z. B. bei T-Junction-Abbruch).
         const full = [];
         if (startConn) full.push({ x: startConn.x, y: startConn.y });
         full.push(...midRoute);
-        if (endConn) full.push({ x: endConn.x, y: endConn.y });
+        if (endConn) {
+          const last = full[full.length - 1];
+          const ec   = { x: endConn.x, y: endConn.y };
+          if (last.x === ec.x || last.y === ec.y) {
+            // Achsparallel → direkt anhängen
+            full.push(ec);
+          } else {
+            // Nicht achsparallel (T-Junction-Shortcut traf Zelle abseits der Ziellinie):
+            // Orthogonalen Zwischenpunkt einfügen, damit kein diagonales Segment entsteht.
+            // Die Connector-Richtung bestimmt das letzte Segment:
+            //   up/down → letztes Segment vertikal → Zwischenpunkt teilt x mit endConn
+            //   left/right → letztes Segment horizontal → Zwischenpunkt teilt y mit endConn
+            const ecDir = endConn.direction;
+            const lastSegmentVertical = (ecDir === 'up' || ecDir === 'down');
+            if (lastSegmentVertical) {
+              full.push({ x: ec.x, y: last.y });
+            } else {
+              full.push({ x: last.x, y: ec.y });
+            }
+            full.push(ec);
+          }
+        }
 
         // Entferne doppelte aufeinanderfolgende Punkte
         const unique = [];
