@@ -196,6 +196,69 @@
     <div class="canvas" id="s11"></div>
   </div>
 
+  <!-- S12 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 12 – T-Punkt/Hub-Routing (aus LESIM extrahiert)</div>
+    <div class="scenario-desc">1:1 aus einem realen Konsolenlog extrahiert (LESIM "Simple RL-Kombination", Zustand nach mehrfachem Verschieben von R1001/R1002). R1001:1 ist ein Hub mit zwei Abzweigungen (conn5 → R1002:1, conn6 → L2001:0) — dort trat ein auffälliges/verschlungenes Routing auf. Koordinaten bewusst NICHT skaliert (Original-Pixelwerte beibehalten), da das Routing-Verhalten von absoluten Distanzen relativ zu <code>gridSize</code> abhängt. <code>gridSize</code> im mount()-Aufruf auf <code>10</code> setzen, um den ursprünglichen (fehlerhaften) Zustand zu reproduzieren; <code>5</code> zeigt den aktuellen, saubereren Stand.</div>
+    <div class="canvas" id="s12" style="height:400px;"></div>
+  </div>
+
+  <!-- S13 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 13 – Hub + separates Netz mit Langstrecken-Route (aus LESIM extrahiert)</div>
+    <div class="scenario-desc">Folgezustand von Szenario 12, 1:1 aus demselben Log: L2001 wurde direkt neben R1002 verschoben, danach wurde <code>conn7</code> (L2001:1 → V1001:1) per Ziehen-Geste neu erstellt (Schicht 3). Zeigt zwei Auffälligkeiten gleichzeitig: den bekannten Hub bei R1001:1 (conn5/conn6) UND eine verdächtig kurze <code>pathLength: 2</code> bei R1002:1→L2001:0, waehrend die separate conn7-Verbindung einen langen Umweg (<code>pathLength: 72</code>) quer durch den ganzen Canvas nimmt. Koordinaten wieder unskaliert.</div>
+    <div class="canvas" id="s13" style="height:450px;"></div>
+  </div>
+
+  <!-- S14 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 14 – Drei parallele T-Punkt-Hubs (LCL-Filter, aus anderer LESIM-Sim extrahiert)</div>
+    <div class="scenario-desc">Aus einer komplett anderen, größeren Simulation extrahiert ("Net3AC", 19 Blöcke) — hier nur der Ausschnitt Dr1001 (FilterL3AC, 3-phasige Drossel) → Tr1001 (Trafo3AC) mit FC1001 (FilterRC3AC) als Shunt-Filterkondensator dazwischen. Jede der drei Phasen bildet einen eigenen T-Punkt-Hub: Dr1001:3/4/5 verzweigt jeweils zu Tr1001 (Serie) UND FC1001 (Shunt) — dieselbe Hub-Situation wie in Szenario 12, hier aber dreifach parallel in einer Szene. FC1001s eigene Connectoren liegen zudem asymmetrisch (590/610/630, nicht gleichmäßig verteilt) — echte Filter-Geometrie. Koordinaten wurden verschoben (nicht skaliert) um in den Canvas zu passen — relative Abstände zueinander und zu <code>gridSize</code> sind identisch zum Original.</div>
+    <div class="canvas" id="s14" style="height:250px;"></div>
+  </div>
+
+  <!-- S15 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 15 – Neuer Block mitten in bestehende Verkabelung gesetzt (aus LESIM extrahiert)</div>
+    <div class="scenario-desc">"Simple RL-Kombination" plus ein per Drag&Drop neu hinzugefügter Block (B6_IWR1). Aktualisierter Zustand: nur noch 3 Connections bilden eine <strong>geschlossene Dreieck-Schleife</strong> zwischen R1001:1, L2001:0 und B6_IWR1 (über dessen zwei Anschlüsse :0 und :4) — <code>conn0</code> (L2001:0↔R1001:1), <code>conn5</code> (B6_IWR1:0↔L2001:0), <code>conn6</code> (B6_IWR1:4↔R1001:1). Anders als die bisherigen Hub-Fälle (Stern mit einem Zentrum) ist das ein echter Kreis im Graphen — 3 Knoten, 3 Kanten, mehr als ein Spannbaum bräuchte. Interessant für den MST-Algorithmus: welche der 3 Kanten wird ggf. als redundant übersprungen? Koordinaten verschoben (nicht skaliert), B6_IWR1 wieder mit eigenem Nachkommaanteil (unabhängig abgelegt).</div>
+    <div class="canvas" id="s15" style="height:350px;"></div>
+  </div>
+
+  <!-- S16 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 16 – "Speichen-Bug": zwei Hub-Sterne (aus LESIM-Debug-Dump)</div>
+    <div class="scenario-desc">Direkt aus einem <code>WIRE_DEBUG</code>-Klartext-Dump übernommen (Nachfolgezustand von Szenario 13, andere Connection-Konstellation). Zwei unabhängige Hub-Sterne: Hub <code>R1001:0</code> oben mit den Speichen <code>V1001:0</code> und <code>R1002:0</code> (<code>conn2</code>, <code>conn3</code>), und Hub <code>L2001:1</code> unten mit den Speichen <code>R1002:1</code> und <code>V1001:1</code> (<code>conn1</code>, <code>conn4</code>). Dazu eine einzelne Punkt-zu-Punkt-Verbindung <code>L2001:0↔R1001:1</code> (<code>conn0</code>, kein Hub). Testfall für den "Speichen-Bug": Bei genau einer geometrisch "unpassenden" Speiche pro Hub ließe sich eine Ecke sparen, wenn der Trunk auf deren Stub-Höhe gezogen würde, statt exakt auf die Hub-Eintrittshöhe (siehe Analyse zu Szenario 13). <code>minLength</code> war im Dump nicht enthalten, einheitlich auf 10 gesetzt (wie in Szenario 12-15).</div>
+    <div class="canvas" id="s16" style="height:450px;"></div>
+  </div>
+
+  <!-- S17 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 17 – Drei Hub-Sterne, Hub-Achse orthogonal zu den Speichen (aus LESIM-Debug-Dump)</div>
+    <div class="scenario-desc">Direkt aus einem <code>WIRE_DEBUG</code>-Klartext-Dump übernommen. Drei parallele Hub-Sterne (<code>V1003:1/2/3</code>, jeweils Richtung <code>up</code>), jeder mit zwei Speichen zu <code>Tr1001</code> und <code>Tr1002</code> (Richtung <code>left</code>). Anders als in Szenario 12-14/16: die Hub-Richtung (<code>up</code>, vertikale Achse) liegt hier <strong>orthogonal</strong> zu beiden Speichen-Richtungen (<code>left</code>, horizontale Achse) — keine der Speichen teilt die Achse des Hubs. Guter Testfall dafür, dass der "Speichen-Bug"-Fix (virtueller Trunk-Punkt) hier korrekt inaktiv bleibt und auf den bisherigen Ansatz (exakter Hub-Eintrittspunkt) zurückfällt. <code>minLength</code> war im Dump nicht enthalten, einheitlich auf 10 gesetzt.</div>
+    <div class="canvas" id="s17" style="height:450px;"></div>
+  </div>
+
+  <!-- S18 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 18 – Sechs verstreute Blöcke, ein Hub + fünf unabhängige Punkt-zu-Punkt-Verbindungen (aus LESIM-Debug-Dump)</div>
+    <div class="scenario-desc">Direkt aus einem <code>WIRE_DEBUG</code>-Klartext-Dump übernommen (nicht-fortlaufende Connection-IDs — Ausschnitt aus einer größeren LESIM-Session). Sechs Blöcke (<code>DAB_L1a</code>, <code>V1002</code>, <code>DAB_L2a</code>, <code>DAB_L2b</code>, <code>R1001</code>, <code>DAB_L3a</code>) über eine breite Fläche verteilt. Nur ein echter Hub: <code>R1001:0</code> (via <code>conn3</code>+<code>conn14</code>, beide Speichen Richtung <code>up</code>, wie der Hub selbst — beide "frei" nach dem Speichen-Bug-Fix). Die übrigen fünf Connections (<code>conn7</code>, <code>conn8</code>, <code>conn9</code>, <code>conn10</code>, <code>conn11</code>) sind unabhängige Punkt-zu-Punkt-Verbindungen ohne gemeinsamen Connector. Guter Stresstest für die A*-Routenfindung über mehrere verstreute Sperrbereiche hinweg. <code>minLength</code> war im Dump nicht enthalten, einheitlich auf 10 gesetzt.</div>
+    <div class="canvas" id="s18" style="height:400px;"></div>
+  </div>
+
+  <!-- S19 -->
+  <div class="scenario">
+    <div class="scenario-header">Szenario 19 – Vier unabhängige Punkt-zu-Punkt-Verbindungen, kein Hub (aus LESIM-Debug-Dump)</div>
+    <div class="scenario-desc">Direkt aus einem <code>WIRE_DEBUG</code>-Klartext-Dump übernommen. Drei Blöcke (<code>Tr1001</code>, <code>R1001</code>, <code>V1002</code>), vier Connections (<code>conn7</code>-<code>conn10</code>) — aber kein einziger gemeinsam genutzter Connector, also kein Hub. <code>conn9</code> (Tr1001:2↔R1001:0) und <code>conn10</code> (R1001:1↔V1002:3) laufen beide über/um denselben <code>R1001</code>-Block, sind aber zwei elektrisch komplett unabhängige Netze. Guter Testfall für eng benachbarte, parallele Punkt-zu-Punkt-Routen ohne Hub-Logik. <code>minLength</code> war im Dump nicht enthalten, einheitlich auf 10 gesetzt.</div>
+    <div class="canvas" id="s19" style="height:300px;"></div>
+  </div>
+
+  <!-- S20 -->
+  <div class="scenario" style="grid-column: 1 / -1;">
+    <div class="scenario-header">Szenario 20 – Dreiphasiger MMC-Umrichter, zwei Hub-Sterne + drei parallele Phasenketten (aus LESIM-Debug-Dump)</div>
+    <div class="scenario-desc">1:1 aus einem <code>currentConn</code>-Klartext-Dump übernommen (14 Blöcke: <code>V_DC</code>, <code>V3AC</code>, <code>MMC_Au/Al/Bu/Bl/Cu/Cl</code>, <code>L_Au/Al/Bu/Bl/Cu/Cl</code>). Zwei echte Hub-Sterne: <code>V_DC:0</code> (Speichen zu <code>MMC_Au/Bu/Cu:0</code>, via <code>conn0/6/12</code>) und <code>V_DC:1</code> (Speichen von <code>MMC_Al/Bl/Cl:1</code>, via <code>conn5/11/17</code>). Dazu drei geometrisch fast identische, parallele Phasenketten (A/B/C), die sich denselben Korridor teilen und via <code>COLLISION_COST</code> gegeneinander ausweichen. War Auslöser für den Open-Set-Perf-Fix (linearer Scan → Binary-Heap in <code>aStarPath()</code>): vorher ≈11s für einen Render-Durchlauf (2 Reihenfolge-Varianten), nachher &lt;0.5s bei identischem Routing-Ergebnis. Ecken-Anzahl (aktuell 4-6 pro Wire bei diesem Netz) bleibt ein offener Punkt, siehe Analyse. <code>minLength</code> war im Dump nicht enthalten — einheitlich auf 10 gesetzt.</div>
+    <div class="canvas" id="s20" style="height:780px;"></div>
+  </div>
+
 </div>
 
 <script src="electricalWire.js"></script>
@@ -250,7 +313,8 @@ function renderDataPanel(scenarioEl, connectors, connections, blockedAreaSpecs) 
 // ── Mount-Funktion ────────────────────────────────────────────────────────────
 // blockedAreaSpecs: Array von {x, y, width, height} – wird in position:absolute-Divs
 // innerhalb des Containers umgewandelt und als HTMLElement-Array an die Bibliothek übergeben.
-function mount(id, connectors, connections, blockedAreaSpecs = [], options = {}) {
+// shrink: optional, Standard 0 (bestehendes Verhalten unveraendert) — siehe setBlockedAreas().
+function mount(id, connectors, connections, blockedAreaSpecs = [], options = {}, shrink = 0) {
   const scenarioEl = document.getElementById(id).parentElement;
   const container  = document.getElementById(id);
 
@@ -264,7 +328,8 @@ function mount(id, connectors, connections, blockedAreaSpecs = [], options = {})
 
   try {
     const w = new ElectricalWire(container, options);
-    w.render(connectors, connections, blockedDivs);
+    w.setBlockedAreas(blockedDivs, { shrink });
+    w.render(connectors, connections);
   } catch (e) {
     const box = document.createElement('div');
     box.className = 'error-box';
@@ -458,6 +523,422 @@ mount('s11',
   [{ id: 'W1', from: 'C1', to: 'C2' }],
   [{ x: 140, y: 100, width: 100, height: 80 }],
   { showBlockedAreas: true }
+);
+
+// ── Szenario 12: T-Punkt/Hub-Routing (1:1 aus LESIM-Konsolenlog extrahiert) ──
+// "Simple RL-Kombination", Zustand nach mehrfachem Verschieben von R1001/R1002.
+// R1001:1 ist ein Hub mit zwei Abzweigungen: conn5 (→ R1002:1, Richtung 'down',
+// rechts auf aehnlicher Hoehe) und conn6 (→ L2001:0, Richtung 'up', fast gleiches
+// x, weiter unten). Genau diese Kombination erzeugte das verschlungene Routing.
+// Koordinaten sind Original-Pixelwerte aus dem Log (nicht skaliert) — shrink:3
+// entspricht LESIMs WIRE_BLOCKED_SHRINK, da die Connectoren dort exakt auf der
+// Blockkante sitzen (rundungsbedingt sonst "exit point inside blocked area").
+// gridSize hier auf 10 stellen, um den urspruenglichen (fehlerhaften) Zustand zu
+// reproduzieren; 5 zeigt den aktuellen, saubereren Stand.
+mount('s12',
+  [
+    { id: 'V1001:0', x: 96.727294921875,  y: 172.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'V1001:1', x: 96.727294921875,  y: 252.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'R1001:0', x: 283.727294921875, y: 57.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1001:1', x: 283.727294921875, y: 137.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'L2001:0', x: 280.727294921875, y: 269.7272891998291,  direction: 'up',   minLength: 10 },
+    { id: 'L2001:1', x: 280.727294921875, y: 349.7272891998291,  direction: 'down', minLength: 10 },
+    { id: 'R1002:0', x: 395.727294921875, y: 65.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1002:1', x: 395.727294921875, y: 145.72727394104004, direction: 'down', minLength: 10 },
+  ],
+  [
+    { id: 'conn2', from: 'V1001:0', to: 'R1001:0' },
+    { id: 'conn3', from: 'R1002:0', to: 'R1001:0' },
+    { id: 'conn5', from: 'R1002:1', to: 'R1001:1' }, // Hub-Ast 1
+    { id: 'conn6', from: 'L2001:0', to: 'R1001:1' }, // Hub-Ast 2
+  ],
+  [
+    { x: 243.727294921875, y: 57.72727394104004,  width: 80, height: 80 }, // R1001
+    { x: 240.727294921875, y: 269.7272891998291,  width: 80, height: 80 }, // L2001
+    { x: 355.727294921875, y: 65.72727394104004,  width: 80, height: 80 }, // R1002
+    { x: 56.727294921875,  y: 172.72727394104004, width: 80, height: 80 }, // V1001
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 13: Hub + separates Netz mit Langstrecken-Route ────────────────
+// Folgezustand von Szenario 12, 1:1 aus demselben Log-Ausschnitt: L2001 wurde
+// direkt neben R1002 verschoben, danach wurde conn7 (L2001:1 -> V1001:1) per
+// Ziehen-Geste neu erstellt (Schicht 3). Zeigt gleichzeitig:
+//  - den bekannten Hub bei R1001:1 (conn5 -> R1002:1, conn6 -> L2001:0)
+//  - eine verdaechtig kurze pathLength:2 bei R1002:1->L2001:0 (netId conn5,conn6)
+//  - eine lange Umweg-Route (pathLength:72) bei der separaten conn7 (eigenes
+//    Netz, teilt sich keinen Connector mit conn5/conn6, muss daher komplett
+//    aussenrum von L2001:1 quer durch den Canvas zu V1001:1 routen).
+// Koordinaten wieder Original-Pixelwerte (nicht skaliert), Blockpositionen ueber
+// die zugehoerigen Connector-Positionen gegengeprueft (nicht aus der teils
+// verstuemmelten Konsolen-Tabellenausgabe abgetippt).
+mount('s13',
+  [
+    { id: 'V1001:0', x: 96.727294921875,  y: 172.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'V1001:1', x: 96.727294921875,  y: 252.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'R1001:0', x: 283.727294921875, y: 57.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1001:1', x: 283.727294921875, y: 137.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'L2001:0', x: 360.727294921875, y: 264.7272891998291,  direction: 'up',   minLength: 10 },
+    { id: 'L2001:1', x: 360.727294921875, y: 344.7272891998291,  direction: 'down', minLength: 10 },
+    { id: 'R1002:0', x: 395.727294921875, y: 65.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1002:1', x: 395.727294921875, y: 145.72727394104004, direction: 'down', minLength: 10 },
+  ],
+  [
+    { id: 'conn2', from: 'V1001:0', to: 'R1001:0' },
+    { id: 'conn3', from: 'R1002:0', to: 'R1001:0' },
+    { id: 'conn5', from: 'R1002:1', to: 'R1001:1' }, // Hub-Ast 1
+    { id: 'conn6', from: 'L2001:0', to: 'R1001:1' }, // Hub-Ast 2
+    { id: 'conn7', from: 'L2001:1', to: 'V1001:1' }, // separates Netz, lange Route
+  ],
+  [
+    { x: 243.727294921875, y: 57.72727394104004,  width: 80, height: 80 }, // R1001
+    { x: 320.727294921875, y: 264.7272891998291,  width: 80, height: 80 }, // L2001
+    { x: 355.727294921875, y: 65.72727394104004,  width: 80, height: 80 }, // R1002
+    { x: 56.727294921875,  y: 172.72727394104004, width: 80, height: 80 }, // V1001
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 14: Drei parallele T-Punkt-Hubs (LCL-Filter) ───────────────────
+// Aus einer komplett anderen Simulation extrahiert ("Net3AC", 19 Bloecke) --
+// Ausschnitt Dr1001 (FilterL3AC) -> Tr1001 (Trafo3AC), FC1001 (FilterRC3AC)
+// als Shunt-Filterkondensator dazwischen. Jede der drei Phasen bildet einen
+// eigenen Hub: Dr1001:3/4/5 verzweigt jeweils zu Tr1001 (Serie) UND FC1001
+// (Shunt) -- dieselbe Hub-Situation wie Szenario 12, hier dreifach parallel.
+// Koordinaten wurden VERSCHOBEN (nicht skaliert, reine Translation um
+// x:-460.727294921875 / y:-286.7272891998291), damit sie in den Canvas
+// passen -- relative Abstaende zueinander und zu gridSize sind identisch zum
+// Original (zufaellig ergeben sich dabei glatte Zahlen, da alle Original-
+// werte denselben Nachkommaanteil hatten). Nur die 6 Connections ZWISCHEN
+// Dr1001/FC1001/Tr1001 sind uebernommen (conn11-16) -- die Verbindungen zu
+// B01 und V1002 (Nachbarbloecke in der Originalsimulation) sind bewusst
+// weggelassen, deren Connectoren erscheinen daher unverbunden.
+mount('s14',
+  [
+    { id: 'Dr1001:0', x: 20,  y: 80,  direction: 'left',  minLength: 10 },
+    { id: 'Dr1001:1', x: 20,  y: 60,  direction: 'left',  minLength: 10 },
+    { id: 'Dr1001:2', x: 20,  y: 40,  direction: 'left',  minLength: 10 },
+    { id: 'Dr1001:3', x: 100, y: 80,  direction: 'right', minLength: 10 },
+    { id: 'Dr1001:4', x: 100, y: 60,  direction: 'right', minLength: 10 },
+    { id: 'Dr1001:5', x: 100, y: 40,  direction: 'right', minLength: 10 },
+    { id: 'FC1001:0', x: 150, y: 194, direction: 'down',  minLength: 10 },
+    { id: 'FC1001:1', x: 130, y: 114, direction: 'up',    minLength: 10 },
+    { id: 'FC1001:2', x: 150, y: 114, direction: 'up',    minLength: 10 },
+    { id: 'FC1001:3', x: 170, y: 114, direction: 'up',    minLength: 10 },
+    { id: 'Tr1001:0', x: 280, y: 40,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:1', x: 280, y: 60,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:2', x: 280, y: 80,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:3', x: 200, y: 40,  direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:4', x: 200, y: 60,  direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:5', x: 200, y: 80,  direction: 'left',  minLength: 10 },
+  ],
+  [
+    { id: 'conn11', from: 'Dr1001:3', to: 'Tr1001:5' }, // Hub 1, Ast 1
+    { id: 'conn12', from: 'Dr1001:3', to: 'FC1001:3' }, // Hub 1, Ast 2
+    { id: 'conn13', from: 'Dr1001:4', to: 'Tr1001:4' }, // Hub 2, Ast 1
+    { id: 'conn14', from: 'Dr1001:4', to: 'FC1001:1' }, // Hub 2, Ast 2
+    { id: 'conn15', from: 'Dr1001:5', to: 'Tr1001:3' }, // Hub 3, Ast 1
+    { id: 'conn16', from: 'Dr1001:5', to: 'FC1001:2' }, // Hub 3, Ast 2
+  ],
+  [
+    { x: 20,  y: 20,  width: 80, height: 80 }, // Dr1001
+    { x: 110, y: 114, width: 80, height: 80 }, // FC1001
+    { x: 200, y: 20,  width: 80, height: 80 }, // Tr1001
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 15: Geschlossene Dreieck-Schleife (R1001:1 / L2001:0 / B6_IWR1) ──
+// "Simple RL-Kombination" plus per Drag&Drop neu hinzugefuegter Block B6_IWR1.
+// Aktualisierter Zustand: nur noch 3 Connections, die eine geschlossene
+// Dreieck-Schleife bilden -- conn0 (L2001:0<->R1001:1), conn5
+// (B6_IWR1:0<->L2001:0), conn6 (B6_IWR1:4<->R1001:1). Anders als die bisherigen
+// Hub-Faelle (Stern mit einem Zentrum) ist das ein echter Kreis im Graphen:
+// 3 Knoten, 3 Kanten -- ein Spannbaum braeuchte nur 2. Koordinaten verschoben
+// (nicht skaliert). B6_IWR1s eigene Werte haben absichtlich einen anderen
+// Nachkommaanteil als die uebrigen Bloecke (per Drag abgelegt, nicht aus dem
+// Schaltplan-JSON geladen) -- exakte Originalwerte, nicht gerundet.
+mount('s15',
+  [
+    { id: 'V1001:0',   x: 50,  y: 126.00001525878906, direction: 'up',    minLength: 10 },
+    { id: 'V1001:1',   x: 50,  y: 206.00001525878906, direction: 'down',  minLength: 10 },
+    { id: 'R1001:0',   x: 237, y: 10,  direction: 'up',    minLength: 10 },
+    { id: 'R1001:1',   x: 237, y: 90,  direction: 'down',  minLength: 10 },
+    { id: 'L2001:0',   x: 234, y: 223.00001525878906, direction: 'up',   minLength: 10 },
+    { id: 'L2001:1',   x: 234, y: 303.00001525878906, direction: 'down', minLength: 10 },
+    { id: 'R1002:0',   x: 393, y: 15,  direction: 'up',    minLength: 10 },
+    { id: 'R1002:1',   x: 393, y: 95,  direction: 'down',  minLength: 10 },
+    { id: 'B6_IWR1:0', x: 337.0909423828125, y: 199.09091186523438, direction: 'down',  minLength: 10 },
+    { id: 'B6_IWR1:1', x: 377.0909423828125, y: 139.09091186523438, direction: 'right', minLength: 10 },
+    { id: 'B6_IWR1:2', x: 377.0909423828125, y: 159.09091186523438, direction: 'right', minLength: 10 },
+    { id: 'B6_IWR1:3', x: 377.0909423828125, y: 179.09091186523438, direction: 'right', minLength: 10 },
+    { id: 'B6_IWR1:4', x: 337.0909423828125, y: 119.09091186523438, direction: 'up',    minLength: 10 },
+  ],
+  [
+    { id: 'conn0', from: 'L2001:0',   to: 'R1001:1' },
+    { id: 'conn5', from: 'B6_IWR1:0', to: 'L2001:0' },
+    { id: 'conn6', from: 'B6_IWR1:4', to: 'R1001:1' },
+  ],
+  [
+    { x: 197, y: 10,  width: 80, height: 80 }, // R1001
+    { x: 194, y: 223.00001525878906, width: 80, height: 80 }, // L2001
+    { x: 353, y: 15,  width: 80, height: 80 }, // R1002
+    { x: 10,  y: 126.00001525878906, width: 80, height: 80 }, // V1001
+    { x: 297.0909423828125, y: 119.09091186523438, width: 80, height: 80 }, // B6_IWR1
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 16: "Speichen-Bug" - zwei Hub-Sterne (aus LESIM-Debug-Dump) ────
+// 1:1 aus einem WIRE_DEBUG-Klartext-Dump uebernommen. Zwei unabhaengige
+// Hub-Sterne: Hub R1001:0 (oben) mit Speichen V1001:0/R1002:0 (conn2, conn3);
+// Hub L2001:1 (unten) mit Speichen R1002:1/V1001:1 (conn1, conn4). Dazu eine
+// einzelne Punkt-zu-Punkt-Connection L2001:0-R1001:1 (conn0), kein Hub.
+// minLength war im Dump nicht enthalten - einheitlich 10 gesetzt (wie in den
+// anderen LESIM-Szenarien 12-15).
+mount('s16',
+  [
+    { id: 'R1001:0', x: 283.727294921875, y: 56.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1001:1', x: 283.727294921875, y: 136.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'L2001:0', x: 280.727294921875, y: 269.7272891998291,  direction: 'up',   minLength: 10 },
+    { id: 'L2001:1', x: 280.727294921875, y: 349.7272891998291,  direction: 'down', minLength: 10 },
+    { id: 'R1002:0', x: 439.727294921875, y: 61.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1002:1', x: 439.727294921875, y: 141.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'V1001:0', x: 96.727294921875,  y: 172.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'V1001:1', x: 96.727294921875,  y: 252.72727394104004, direction: 'down', minLength: 10 },
+  ],
+  [
+    { id: 'conn0', from: 'L2001:0', to: 'R1001:1' },
+    { id: 'conn1', from: 'R1002:1', to: 'L2001:1' },
+    { id: 'conn2', from: 'V1001:0', to: 'R1001:0' },
+    { id: 'conn3', from: 'R1002:0', to: 'R1001:0' },
+    { id: 'conn4', from: 'V1001:1', to: 'L2001:1' },
+  ],
+  [
+    { x: 243.727294921875, y: 56.72727394104004,  width: 80, height: 80 }, // R1001
+    { x: 240.727294921875, y: 269.7272891998291,  width: 80, height: 80 }, // L2001
+    { x: 399.727294921875, y: 61.72727394104004,  width: 80, height: 80 }, // R1002
+    { x: 56.727294921875,  y: 172.72727394104004, width: 80, height: 80 }, // V1001
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 17: Drei Hub-Sterne, Hub-Achse orthogonal zu den Speichen ─────
+// 1:1 aus einem WIRE_DEBUG-Klartext-Dump uebernommen. Drei parallele
+// Hub-Sterne (V1003:1/2/3, jeweils Richtung "up"), jeweils mit zwei Speichen
+// zu Tr1001 und Tr1002 (Richtung "left"). Hub-Achse (vertikal) liegt hier
+// orthogonal zu beiden Speichen-Richtungen (horizontal) - anders als in
+// Szenario 12-14/16, wo Hub und mind. eine Speiche dieselbe Achse teilten.
+// minLength war im Dump nicht enthalten - einheitlich 10 gesetzt.
+mount('s17',
+  [
+    { id: 'V1003:0', x: 136.7272720336914, y: 375.7272663116455, direction: 'down', minLength: 10 },
+    { id: 'V1003:1', x: 96.7272720336914,  y: 295.7272663116455, direction: 'up',   minLength: 10 },
+    { id: 'V1003:2', x: 116.7272720336914, y: 295.7272663116455, direction: 'up',   minLength: 10 },
+    { id: 'V1003:3', x: 136.7272720336914, y: 295.7272663116455, direction: 'up',   minLength: 10 },
+    { id: 'Tr1002:0', x: 188.72727966308594, y: 145.72727394104004, direction: 'left',  minLength: 10 },
+    { id: 'Tr1002:1', x: 188.72727966308594, y: 125.72727394104004, direction: 'left',  minLength: 10 },
+    { id: 'Tr1002:2', x: 188.72727966308594, y: 105.72727394104004, direction: 'left',  minLength: 10 },
+    { id: 'Tr1002:3', x: 268.72727966308594, y: 145.72727394104004, direction: 'right', minLength: 10 },
+    { id: 'Tr1002:4', x: 268.72727966308594, y: 125.72727394104004, direction: 'right', minLength: 10 },
+    { id: 'Tr1002:5', x: 268.72727966308594, y: 105.72727394104004, direction: 'right', minLength: 10 },
+    { id: 'Tr1001:0', x: 188.72727966308594, y: 252.72728157043457, direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:1', x: 188.72727966308594, y: 232.72728157043457, direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:2', x: 188.72727966308594, y: 212.72728157043457, direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:3', x: 268.72727966308594, y: 252.72728157043457, direction: 'right', minLength: 10 },
+    { id: 'Tr1001:4', x: 268.72727966308594, y: 232.72728157043457, direction: 'right', minLength: 10 },
+    { id: 'Tr1001:5', x: 268.72727966308594, y: 212.72728157043457, direction: 'right', minLength: 10 },
+  ],
+  [
+    { id: 'conn0', from: 'V1003:1', to: 'Tr1001:2' },
+    { id: 'conn1', from: 'V1003:1', to: 'Tr1002:2' },
+    { id: 'conn2', from: 'V1003:2', to: 'Tr1001:1' },
+    { id: 'conn3', from: 'V1003:2', to: 'Tr1002:1' },
+    { id: 'conn4', from: 'V1003:3', to: 'Tr1001:0' },
+    { id: 'conn5', from: 'V1003:3', to: 'Tr1002:0' },
+  ],
+  [
+    { x: 76.7272720336914,  y: 295.7272663116455,  width: 80, height: 80 }, // V1003
+    { x: 188.72727966308594, y: 85.72727394104004,  width: 80, height: 80 }, // Tr1002
+    { x: 188.72727966308594, y: 192.72728157043457, width: 80, height: 80 }, // Tr1001
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 18: Sechs verstreute Bloecke, ein Hub + fuenf unabhaengige P2P ─
+// 1:1 aus einem WIRE_DEBUG-Klartext-Dump uebernommen. Nicht-fortlaufende
+// Connection-IDs (Ausschnitt aus groesserer LESIM-Session). Nur ein echter
+// Hub: R1001:0 (conn3+conn14, beide Speichen Richtung "up" wie der Hub selbst
+// - beide "frei"). Die restlichen 5 Connections sind unabhaengige
+// Punkt-zu-Punkt-Verbindungen ohne gemeinsamen Connector. minLength war im
+// Dump nicht enthalten - einheitlich 10 gesetzt.
+mount('s18',
+  [
+    { id: 'DAB_L1a:0', x: 161.727294921875, y: 139.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L1a:1', x: 161.727294921875, y: 179.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L1a:2', x: 241.727294921875, y: 139.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L1a:3', x: 241.727294921875, y: 179.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'V1002:0',   x: 379.727294921875, y: 176.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'V1002:1',   x: 379.727294921875, y: 256.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L2a:0', x: 473.727294921875, y: 141.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L2a:1', x: 473.727294921875, y: 181.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L2a:2', x: 553.727294921875, y: 141.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L2a:3', x: 553.727294921875, y: 181.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L2b:0', x: 473.727294921875, y: 209.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L2b:1', x: 473.727294921875, y: 249.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L2b:2', x: 553.727294921875, y: 209.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L2b:3', x: 553.727294921875, y: 249.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'R1001:0',   x: 552.727294921875, y: 44.72727394104004,  direction: 'up',   minLength: 10 },
+    { id: 'R1001:1',   x: 552.727294921875, y: 124.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L3a:0', x: 824.727294921875, y: 127.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L3a:1', x: 824.727294921875, y: 167.72727394104004, direction: 'down', minLength: 10 },
+    { id: 'DAB_L3a:2', x: 904.727294921875, y: 127.72727394104004, direction: 'up',   minLength: 10 },
+    { id: 'DAB_L3a:3', x: 904.727294921875, y: 167.72727394104004, direction: 'down', minLength: 10 },
+  ],
+  [
+    { id: 'conn3',  from: 'DAB_L1a:2', to: 'R1001:0' },
+    { id: 'conn7',  from: 'V1002:0',   to: 'DAB_L2a:0' },
+    { id: 'conn8',  from: 'V1002:1',   to: 'DAB_L2b:1' },
+    { id: 'conn9',  from: 'DAB_L2a:1', to: 'DAB_L2b:0' },
+    { id: 'conn10', from: 'DAB_L2a:2', to: 'R1001:1' },
+    { id: 'conn11', from: 'DAB_L2a:3', to: 'DAB_L2b:2' },
+    { id: 'conn14', from: 'R1001:0',   to: 'DAB_L3a:2' },
+  ],
+  [
+    { x: 161.727294921875, y: 119.72727394104004, width: 80, height: 80 }, // DAB_L1a
+    { x: 339.727294921875, y: 176.72727394104004, width: 80, height: 80 }, // V1002
+    { x: 473.727294921875, y: 121.72727394104004, width: 80, height: 80 }, // DAB_L2a
+    { x: 473.727294921875, y: 189.72727394104004, width: 80, height: 80 }, // DAB_L2b
+    { x: 512.727294921875, y: 44.72727394104004,  width: 80, height: 80 }, // R1001
+    { x: 824.727294921875, y: 107.72727394104004, width: 80, height: 80 }, // DAB_L3a
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 19: Vier unabhaengige Punkt-zu-Punkt-Verbindungen, kein Hub ────
+// 1:1 aus einem WIRE_DEBUG-Klartext-Dump uebernommen. Drei Bloecke, vier
+// Connections, aber kein einziger gemeinsam genutzter Connector - conn9 und
+// conn10 laufen beide um denselben R1001-Block, sind aber zwei elektrisch
+// unabhaengige Netze. minLength war im Dump nicht enthalten - einheitlich 10
+// gesetzt.
+mount('s19',
+  [
+    { id: 'Tr1001:0', x: 219.72723388671875, y: 57.72727394104004,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:1', x: 219.72723388671875, y: 77.72727394104004,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:2', x: 219.72723388671875, y: 97.72727394104004,  direction: 'right', minLength: 10 },
+    { id: 'Tr1001:3', x: 139.72723388671875, y: 57.72727394104004,  direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:4', x: 139.72723388671875, y: 77.72727394104004,  direction: 'left',  minLength: 10 },
+    { id: 'Tr1001:5', x: 139.72723388671875, y: 97.72727394104004,  direction: 'left',  minLength: 10 },
+    { id: 'R1001:0',  x: 237.72723388671875, y: 97.72727394104004,  direction: 'left',  minLength: 10 },
+    { id: 'R1001:1',  x: 317.72723388671875, y: 97.72727394104004,  direction: 'right', minLength: 10 },
+    { id: 'V1002:0',  x: 383.72723388671875, y: 206.72727394104004, direction: 'down',  minLength: 10 },
+    { id: 'V1002:1',  x: 343.72723388671875, y: 126.72727394104004, direction: 'up',    minLength: 10 },
+    { id: 'V1002:2',  x: 363.72723388671875, y: 126.72727394104004, direction: 'up',    minLength: 10 },
+    { id: 'V1002:3',  x: 383.72723388671875, y: 126.72727394104004, direction: 'up',    minLength: 10 },
+  ],
+  [
+    { id: 'conn7',  from: 'Tr1001:0', to: 'V1002:1' },
+    { id: 'conn8',  from: 'Tr1001:1', to: 'V1002:2' },
+    { id: 'conn9',  from: 'Tr1001:2', to: 'R1001:0' },
+    { id: 'conn10', from: 'R1001:1',  to: 'V1002:3' },
+  ],
+  [
+    { x: 139.72723388671875, y: 37.72727394104004,  width: 80, height: 80 }, // Tr1001
+    { x: 237.72723388671875, y: 57.72727394104004,  width: 80, height: 80 }, // R1001
+    { x: 323.72723388671875, y: 126.72727394104004, width: 80, height: 80 }, // V1002
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
+);
+
+// ── Szenario 20: Dreiphasiger MMC-Umrichter, zwei Hub-Sterne + drei parallele
+// Phasenketten ────────────────────────────────────────────────────────────
+// 1:1 aus dem currentConn-Klartext-Dump uebernommen. V_DC:0 ist Hub-Quelle fuer
+// drei Speichen (conn0/6/12 zu MMC_Au/Bu/Cu:0), V_DC:1 ist Hub-Ziel fuer drei
+// Speichen (conn5/11/17 von MMC_Al/Bl/Cl:1). Dazwischen drei unabhaengige,
+// geometrisch fast identische Phasenketten A/B/C (je 3 Connections, kein Hub -
+// isMinimalTree), die sich beim Routing denselben Korridor teilen. War Ausloeser
+// fuer den Open-Set-Perf-Fix in aStarPath() (linearer Scan -> Binary-Heap).
+// minLength war im Dump nicht enthalten - einheitlich 10 gesetzt.
+mount('s20',
+  [
+    { id: 'V_DC:0',    x: 81,  y: 321, direction: 'up',    minLength: 10 },
+    { id: 'V_DC:1',    x: 81,  y: 401, direction: 'down',  minLength: 10 },
+    { id: 'V3AC:0',    x: 41,  y: 561, direction: 'left',  minLength: 10 },
+    { id: 'V3AC:1',    x: 121, y: 521, direction: 'right', minLength: 10 },
+    { id: 'V3AC:2',    x: 121, y: 541, direction: 'right', minLength: 10 },
+    { id: 'V3AC:3',    x: 121, y: 561, direction: 'right', minLength: 10 },
+    { id: 'MMC_Au:0',  x: 361, y: 61,  direction: 'up',    minLength: 10 },
+    { id: 'MMC_Au:1',  x: 361, y: 141, direction: 'down',  minLength: 10 },
+    { id: 'L_Au:0',    x: 361, y: 201, direction: 'up',    minLength: 10 },
+    { id: 'L_Au:1',    x: 361, y: 281, direction: 'down',  minLength: 10 },
+    { id: 'L_Al:0',    x: 361, y: 481, direction: 'up',    minLength: 10 },
+    { id: 'L_Al:1',    x: 361, y: 561, direction: 'down',  minLength: 10 },
+    { id: 'MMC_Al:0',  x: 361, y: 621, direction: 'up',    minLength: 10 },
+    { id: 'MMC_Al:1',  x: 361, y: 701, direction: 'down',  minLength: 10 },
+    { id: 'MMC_Bu:0',  x: 661, y: 61,  direction: 'up',    minLength: 10 },
+    { id: 'MMC_Bu:1',  x: 661, y: 141, direction: 'down',  minLength: 10 },
+    { id: 'L_Bu:0',    x: 661, y: 201, direction: 'up',    minLength: 10 },
+    { id: 'L_Bu:1',    x: 661, y: 281, direction: 'down',  minLength: 10 },
+    { id: 'L_Bl:0',    x: 661, y: 481, direction: 'up',    minLength: 10 },
+    { id: 'L_Bl:1',    x: 661, y: 561, direction: 'down',  minLength: 10 },
+    { id: 'MMC_Bl:0',  x: 661, y: 621, direction: 'up',    minLength: 10 },
+    { id: 'MMC_Bl:1',  x: 661, y: 701, direction: 'down',  minLength: 10 },
+    { id: 'MMC_Cu:0',  x: 961, y: 61,  direction: 'up',    minLength: 10 },
+    { id: 'MMC_Cu:1',  x: 961, y: 141, direction: 'down',  minLength: 10 },
+    { id: 'L_Cu:0',    x: 961, y: 201, direction: 'up',    minLength: 10 },
+    { id: 'L_Cu:1',    x: 961, y: 281, direction: 'down',  minLength: 10 },
+    { id: 'L_Cl:0',    x: 961, y: 481, direction: 'up',    minLength: 10 },
+    { id: 'L_Cl:1',    x: 961, y: 561, direction: 'down',  minLength: 10 },
+    { id: 'MMC_Cl:0',  x: 961, y: 621, direction: 'up',    minLength: 10 },
+    { id: 'MMC_Cl:1',  x: 961, y: 701, direction: 'down',  minLength: 10 },
+  ],
+  [
+    { id: 'conn0',  from: 'V_DC:0',    to: 'MMC_Au:0' },
+    { id: 'conn1',  from: 'MMC_Au:1',  to: 'L_Au:0' },
+    { id: 'conn2',  from: 'L_Au:1',    to: 'V3AC:1' },
+    { id: 'conn3',  from: 'V3AC:1',    to: 'L_Al:0' },
+    { id: 'conn4',  from: 'L_Al:1',    to: 'MMC_Al:0' },
+    { id: 'conn5',  from: 'MMC_Al:1',  to: 'V_DC:1' },
+    { id: 'conn6',  from: 'V_DC:0',    to: 'MMC_Bu:0' },
+    { id: 'conn7',  from: 'MMC_Bu:1',  to: 'L_Bu:0' },
+    { id: 'conn8',  from: 'L_Bu:1',    to: 'V3AC:2' },
+    { id: 'conn9',  from: 'V3AC:2',    to: 'L_Bl:0' },
+    { id: 'conn10', from: 'L_Bl:1',    to: 'MMC_Bl:0' },
+    { id: 'conn11', from: 'MMC_Bl:1',  to: 'V_DC:1' },
+    { id: 'conn12', from: 'V_DC:0',    to: 'MMC_Cu:0' },
+    { id: 'conn13', from: 'MMC_Cu:1',  to: 'L_Cu:0' },
+    { id: 'conn14', from: 'L_Cu:1',    to: 'V3AC:3' },
+    { id: 'conn15', from: 'V3AC:3',    to: 'L_Cl:0' },
+    { id: 'conn16', from: 'L_Cl:1',    to: 'MMC_Cl:0' },
+    { id: 'conn17', from: 'MMC_Cl:1',  to: 'V_DC:1' },
+  ],
+  [
+    { x: 44,  y: 324, width: 74, height: 74 }, // V_DC
+    { x: 44,  y: 504, width: 74, height: 74 }, // V3AC
+    { x: 324, y: 64,  width: 74, height: 74 }, // MMC_Au
+    { x: 324, y: 204, width: 74, height: 74 }, // L_Au
+    { x: 324, y: 624, width: 74, height: 74 }, // MMC_Al
+    { x: 324, y: 484, width: 74, height: 74 }, // L_Al
+    { x: 624, y: 64,  width: 74, height: 74 }, // MMC_Bu
+    { x: 624, y: 204, width: 74, height: 74 }, // L_Bu
+    { x: 624, y: 624, width: 74, height: 74 }, // MMC_Bl
+    { x: 624, y: 484, width: 74, height: 74 }, // L_Bl
+    { x: 924, y: 64,  width: 74, height: 74 }, // MMC_Cu
+    { x: 924, y: 204, width: 74, height: 74 }, // L_Cu
+    { x: 924, y: 624, width: 74, height: 74 }, // MMC_Cl
+    { x: 924, y: 484, width: 74, height: 74 }, // L_Cl
+  ],
+  { showBlockedAreas: true, gridSize: 5, logging: true },
+  3 // shrink, entspricht LESIMs WIRE_BLOCKED_SHRINK
 );
 
 </script>
