@@ -87,8 +87,11 @@ new ElectricalWire(container, options?)
 | `connectorRadius` | `number`  | `5`          | Radius der Connector-Kreise in px.                            |
 | `connectorColor`  | `string`  | `"#e00"`     | Füllfarbe der Connector-Kreise.                               |
 | `junctionRadius`  | `number`  | `4`          | Radius der Kreuzungsknoten-Punkte in px.                      |
-| `showBlockedAreas`| `boolean` | `false`      | Sperrbereiche als hellgraue Fläche einzeichnen (Debugging).   |
-| `hoverColor`      | `string`  | `"#e67e00"`  | Farbe beim Hover über einen Wire (ganzer Stromkreis).         |
+| `showBlockedAreas`   | `boolean` | `false`      | Sperrbereiche als hellgraue Fläche einzeichnen (Debugging).         |
+| `showConnectorLabels`| `boolean` | `true`       | Pin-Nummer als Text neben jedem Connector anzeigen. Siehe Abschnitt „Labels“.         |
+| `showBlockLabels`    | `boolean` | `true`       | Elementname einmal je Element anzeigen. Siehe Abschnitt „Labels“.         |
+| `hoverColor`         | `string`  | `"#e67e00"`  | Farbe beim Hover über einen Wire (ganzer Stromkreis).               |
+| `logging`            | `boolean` | `true`       | Debug-Ausgaben via `console.log('[ElectricalWire]', ...)`.          |
 
 ---
 
@@ -164,7 +167,11 @@ Leeres Array `[]` ist gültig (keine Sperrbereiche).
 // HTMLElement — Position wird bei render() aus DOM gelesen
 wire.setBlockedAreas([divR1, divR2], { shrink: 5 });
 
-// Rechteck-Objekt — z.B. aus schematicBlock.getImageRect()
+// Rechteck-Objekt {x, y, width, height} — bereits in Container-Koordinaten,
+// shrink wird nicht angewendet
+wire.setBlockedAreas([{ x: 10, y: 20, width: 60, height: 80 }]);
+
+// Gemischt — HTMLElements aus schematicBlock
 wire.setBlockedAreas(
   [r1, r2, c1].map(b => b.getImageDiv()),
   { shrink: 5 }
@@ -204,6 +211,25 @@ Entfernt alle gezeichneten SVG-Elemente aus dem Container. Der interne Zustand (
 ```js
 wiring.clear();
 ```
+
+---
+
+## Labels
+
+Zwei unabhängig voneinander abschaltbare Label-Arten:
+
+**Pin-Label** (`showConnectorLabels`) — kurzes Label direkt am Connector. Bei IDs nach dem Schema `"ElementName:PinNummer"` (z.B. `"R1001:1"`) wird nur der Teil nach dem letzten `:` gezeigt (`"1"`); IDs ohne `:` zeigen die volle ID. Position/Ausrichtung richten sich nach `direction`, damit das Label auf der Stub-Seite liegt statt auf der Wire-Linie oder der Elementfläche:
+
+| `direction` | Position | `text-anchor` |
+|---|---|---|
+| `up`    | oberhalb, seitlich versetzt   | `start` |
+| `down`  | unterhalb, seitlich versetzt  | `start` |
+| `right` | rechts daneben, angehoben     | `start` |
+| `left`  | links daneben, angehoben      | `end`   |
+
+**Block-Label** (`showBlockLabels`) — Elementname (Teil vor dem letzten `:`), einmal je Element. Connectoren mit gleichem Präfix (z.B. alle `R1001:*`) bilden eine Gruppe; das Label wird am Schwerpunkt der Connector-Koordinaten dieser Gruppe gezeichnet. Connectoren ohne `:` bilden keine Gruppe und erzeugen kein Block-Label.
+
+`showBlockLabels: false` setzen, wenn die einbindende Anwendung (z.B. LESIM) den Elementnamen bereits selbst darstellt.
 
 ---
 
@@ -295,8 +321,8 @@ und reagieren auf Hover und Rechtsklick.
 | `setConnections` | Doppelte Connection-ID                              | `duplicate connection id "{id}".` |
 | `setConnections` | `from`/`to` verweist auf unbekannte Connector-ID    | `connection "{id}" references unknown connector "{connectorId}".` |
 | `setConnections` | `from === to`                                       | `connection "{id}" connects a connector to itself.` |
-| `setBlockedAreas`| Fehlende oder nicht-numerische Dimension            | `blocked area at index {i} has invalid dimensions.` |
-| `setBlockedAreas`| `width` oder `height` ≤ 0                          | `blocked area at index {i} has non-positive width or height.` |
+| `setBlockedAreas`| kein HTMLElement und kein Rechteck-Objekt           | `blocked area at index {i} is not an HTMLElement or rect object.` |
+| `setBlockedAreas`| `width` oder `height` ≤ 0 (nach shrink)             | `blocked area at index {i} has zero dimensions. Ensure the element is visible in the DOM.` |
 | `render`         | `setConnectors` nicht aufgerufen                    | `render() called before setConnectors().` |
 | `render`         | `setConnections` nicht aufgerufen                   | `render() called before setConnections().` |
 | `render`         | `setBlockedAreas` nicht aufgerufen                  | `render() called before setBlockedAreas().` |
@@ -307,9 +333,11 @@ Alle Meldungen haben das Präfix `ElectricalWire: `.
 
 **`console.warn()` (Warnung, Rendering wird fortgesetzt):**
 
-| Warnfall                                    | Meldung |
-|---------------------------------------------|---------|
-| Connector liegt innerhalb eines Sperrbereichs | `connector "{id}" lies within a blocked area. Routing may be impossible.` |
-| Container hat `position: static`            | `container has no CSS positioning context (position is "static"). Set position to "relative", "absolute" or "fixed".` |
+| Warnfall                                                    | Meldung |
+|-------------------------------------------------------------|---------|
+| Connector liegt innerhalb eines Sperrbereichs               | `connector "{id}" lies within a blocked area. Routing may be impossible.` |
+| Exit-Punkt des Connectors liegt im Sperrbereich             | `connector "{id}" exit point ({x},{y}) lands inside a blocked area. Stub will be extended in direction "{dir}" until clear.` |
+| Exit-Punkt liegt außerhalb des Containers (negativ)         | `connector "{id}" exit point ({x}, {y}) is outside the container (negative coordinates). Increase container size or reduce minLength.` |
+| Container hat `position: static`                            | `container has no CSS positioning context (position is "static"). Set position to "relative", "absolute" or "fixed".` |
 
-Liegt ein Connector im Sperrbereich, verlässt der Wire den Bereich auf dem kürzesten orthogonalen Weg. Die `minLength`-Anforderung gilt erst ab dem Punkt, an dem der Wire den Sperrbereich verlassen hat.
+Liegt ein Connector im Sperrbereich, verlässt der Wire den Bereich auf dem kürzesten orthogonalen Weg. Liegt nur der Exit-Punkt (nach `minLength`) im Sperrbereich, wird der Stub automatisch bis zur Bereichsgrenze verlängert — A* wählt dann selbst den kürzesten Ausweg.
