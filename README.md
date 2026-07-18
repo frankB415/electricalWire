@@ -38,6 +38,7 @@ const DEFAULTS = {
   junctionRadius:      4,
   showBlockedAreas:    false,
   showConnectorLabels: true,
+  showBlockLabels:     true,
   hoverColor:          "#e67e00",
   logging:             true
 };
@@ -82,7 +83,8 @@ const wiring = new ElectricalWire(container, options);
 | `junctionRadius` | `number` | `4` | Radius der Kreuzungsknoten-Punkte in Pixel. |
 | `connectorColor` | `string` | `"#e00"` | Füllfarbe der Connector-Kreise. |
 | `showBlockedAreas` | `boolean` | `false` | Sperrbereiche als hellgraue Fläche einzeichnen (nützlich für Debugging). |
-| `showConnectorLabels` | `boolean` | `true` | Connector-IDs als Textlabels über den Connector-Kreisen einzeichnen (nützlich für Debugging). |
+| `showConnectorLabels` | `boolean` | `true` | Pin-Nummer als Textlabel neben jedem Connector einzeichnen (nützlich für Debugging). Siehe Abschnitt „Labels“. |
+| `showBlockLabels` | `boolean` | `true` | Elementname einmal je Element als Textlabel einzeichnen. Siehe Abschnitt „Labels“. Auf `false` setzen, wenn die einbindende Anwendung (z.B. LESIM) das Element bereits selbst beschriftet. |
 | `hoverColor` | `string` | `"#e67e00"` | Farbe, auf die alle Wires und Connectoren eines Stromkreises beim Hover wechseln. |
 | `logging` | `boolean` | `true` | Aktiviert oder deaktiviert sämtliche Debug-Logs der Bibliothek (siehe Abschnitt Logging). |
 
@@ -193,6 +195,29 @@ wiring.clear();
 ```
 
 Entfernt alle gezeichneten Elemente aus dem Container, ohne den internen Zustand (Connectoren, Connections, Sperrbereiche) zu löschen.
+
+---
+
+### Labels
+
+Die Bibliothek zeichnet zwei unterschiedliche Arten von Textlabels, die unabhängig voneinander per Option abschaltbar sind:
+
+**Pin-Label** (`showConnectorLabels`, Default `true`) — ein kurzes Label direkt am Connector. Folgt die `id` der Konvention `"ElementName:PinNummer"` (z.B. `"R1001:1"`), wird nur der Teil **nach dem letzten `:`** angezeigt (`"1"`) — der Elementname steht bereits einmal am Block (siehe Block-Label). IDs ohne `:` (z.B. `"C1"`) zeigen die vollständige ID.
+
+Position und Textausrichtung hängen von `direction` ab, damit das Label immer auf der freien Seite (Stub-Seite) liegt und nicht auf der Wire-Linie oder der Elementfläche:
+
+| `direction` | Position relativ zum Connector | `text-anchor` |
+|---|---|---|
+| `up` | oberhalb, seitlich versetzt | `start` |
+| `down` | unterhalb, seitlich versetzt | `start` |
+| `right` | rechts daneben, leicht angehoben | `start` |
+| `left` | links daneben, leicht angehoben | `end` |
+
+Der seitliche Versatz bei `up`/`down` ist notwendig, weil der Wire-Pfad exakt am Connector-Punkt beginnt und bei `up`/`down` als senkrechte Linie über dem Connector weiterläuft — eine mittige Ausrichtung (`text-anchor: middle`) würde das Label direkt auf diese Linie legen.
+
+**Block-Label** (`showBlockLabels`, Default `true`) — der Elementname (Teil der `id` **vor** dem letzten `:`), einmal je Element. Alle Connectoren mit demselben Präfix (z.B. alle `R1001:*`) bilden eine Gruppe; das Label wird am Schwerpunkt (Mittelwert) der Connector-Koordinaten dieser Gruppe gezeichnet — bei symmetrisch verteilten Connectoren (z.B. je 3 links/rechts) liegt das nahe der Blockmitte. Connectoren ohne `:` bilden keine Gruppe und erzeugen kein Block-Label (ihr Pin-Label zeigt ja bereits die volle ID).
+
+Auf `showBlockLabels: false` setzen, wenn die einbindende Anwendung (z.B. LESIM) den Elementnamen bereits selbst am Block darstellt.
 
 ---
 
@@ -357,6 +382,8 @@ Jedem SVG-Wire-Element und jedem SVG-Connector-Element wird das Attribut `data-n
 | Connector (Hover, ganzer Stromkreis) | Füllfarbe wechselt zu `hoverColor` |
 | Kreuzungsknoten | Schwarzer Punkt, Farbe `#000`, Radius `junctionRadius` |
 | Sperrbereich | Hellgrau (`#eee`, Deckkraft 50 %), nur wenn `showBlockedAreas: true` |
+| Pin-Label | Pin-Nummer (nach dem letzten `:` in der ID) neben dem Connector, nur wenn `showConnectorLabels: true` |
+| Block-Label | Elementname (vor dem letzten `:` in der ID), einmal je Element am Schwerpunkt seiner Connectoren, nur wenn `showBlockLabels: true` |
 
 ---
 
